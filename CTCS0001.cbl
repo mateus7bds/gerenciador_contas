@@ -79,6 +79,16 @@
            03  FILLER               PIC  X(001) VALUE '/'.
            03  ANO                  PIC  9(004) VALUE ZEROS.
       *
+       01  PESO-DGT                 PIC  9(001) VALUE ZERO.
+       01  DIGITO                   PIC  9(001) VALUE ZERO.
+       01  AGENCIA-STRING           PIC  X(004) VALUE ZEROS.
+       01  RESULTADO-PESO           PIC  9(002) VALUE ZEROS.
+       01  SOMA-PESOS               PIC  9(003) VALUE ZEROS.
+       01  FILLER-QUOCIENTE         PIC  9(002) VALUE ZEROS.
+       01  RESTO                    PIC  9(002) VALUE ZEROS.
+       01  DV-NUMERO                PIC  9(002) VALUE ZEROS.
+       01  DV-CALCULADO             PIC  X(001) VALUE SPACE.
+      *
       * Nao ha como utilizar o LINKAGE SECTION no OpenCOBOL, entao
       * defini uma variavel que funcionaria de forma semelhante ao
       * COMMAREA
@@ -88,15 +98,18 @@
       *------------------------------------------------------------------------
       *
        01  COMMAREA.
-           03  ENTD-PROGRAMA.
-               05  OPERACAO          PIC  9(002) VALUE ZEROS.
-               05  AGENCIA           PIC  9(008) VALUE ZEROS.
-               05  DV-AGENCIA        PIC  X(002) VALUE ZEROS.
-               05  CONTA             PIC  9(008) VALUE ZEROS.
-               05  DV-CONTA          PIC  X(002) VALUE ZEROS.
-               05  NOME              PIC  X(040) VALUE SPACES.
-               05  CPF               PIC  9(011) VALUE ZEROS.
-               05  DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
+           03  S0001-ENTD-PROGRAMA.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 1.
+               05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
+               05  S0001-DV-AGENCIA        PIC  X(001) VALUE "X".
+               05  S0001-CONTA             PIC  9(008) VALUE ZEROS.
+               05  S0001-DV-CONTA          PIC  X(002) VALUE ZEROS.
+               05  S0001-NOME              PIC  X(040) VALUE SPACES.
+               05  S0001-CPF               PIC  9(011) VALUE ZEROS.
+               05  S0001-DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
+           03  S0001-VRV-RTN.
+               05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
+               05  S0001-TX-MSG-RTN        PIC  X(080) VALUE SPACES.
       *
       * PROCEDURE DIVISION USING COMMAREA.
       *
@@ -110,7 +123,7 @@
       *
            PERFORM 020000-TRATAR-BASE-DADOS
       *
-           EVALUATE OPERACAO
+           EVALUATE S0001-OPERACAO
                WHEN 1
                    PERFORM 030000-CRIAR-CONTA
                WHEN 2
@@ -178,9 +191,72 @@
        030000-CRIAR-CONTA SECTION.
       *------------------------------------------------------------------------
       *
-           DISPLAY 'CRIAR CONTA CORRENTE'
+           PERFORM 031000-VALIDAR-DD-CRIAR-CONTA
            .
       *
        030000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       031000-VALIDAR-DD-CRIAR-CONTA SECTION.
+      *------------------------------------------------------------------------
+      *
+           PERFORM 0X1000-VALIDAR-AGENCIA
+           .
+      *
+       031000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X1000-VALIDAR-AGENCIA SECTION.
+      *------------------------------------------------------------------------
+      * Agencia:
+      *  - formada por 4 digitos
+      *  - Pesos: 5, 4, 3, 2
+      *  - Módulo: 11
+      *
+           IF S0001-AGENCIA(IC-ITRA:1) EQUAL ZEROS
+               MOVE 01 TO S0001-CD-RTN
+               MOVE 'CTCS0001 - Número da agência igual a zero.' TO
+                   S0001-TX-MSG-RTN
+           END-IF
+      *
+           MOVE 5     TO PESO-DGT
+           MOVE ZEROS TO SOMA-PESOS
+      *
+           PERFORM VARYING IC-ITRA FROM 1 BY 1 UNTIL IC-ITRA > 4
+               MOVE S0001-AGENCIA(IC-ITRA:1) TO DIGITO
+               MULTIPLY PESO-DGT BY DIGITO GIVING RESULTADO-PESO
+               DISPLAY 'PESO-DGT: ' PESO-DGT
+               DISPLAY 'DIGITO: '  DIGITO
+               ADD RESULTADO-PESO TO SOMA-PESOS
+               SUBTRACT 1 FROM PESO-DGT
+           END-PERFORM
+      *
+           DISPLAY 'SOMA-PESOS: ' SOMA-PESOS
+      *
+           DIVIDE SOMA-PESOS BY 11 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO
+      *
+           SUBTRACT RESTO FROM 11 GIVING DV-NUMERO
+      *
+           IF DV-NUMERO EQUAL 10
+               MOVE "X" TO DV-CALCULADO
+           ELSE
+               MOVE DV-NUMERO(2:1) TO DV-CALCULADO
+           END-IF
+      *
+           DISPLAY 'DV-CALCULADO: ' DV-CALCULADO
+      *
+           IF S0001-DV-AGENCIA NOT EQUAL DV-CALCULADO
+               MOVE 02 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Dígito verificador da agência inválida."
+                   TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+           .
+
+      *
+       0X1000-SAIR.
            EXIT SECTION
            .
