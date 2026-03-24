@@ -101,9 +101,9 @@
            03  S0001-ENTD-PROGRAMA.
                05  S0001-OPERACAO          PIC  9(002) VALUE 1.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
-               05  S0001-DV-AGENCIA        PIC  X(001) VALUE "X".
-               05  S0001-CONTA             PIC  9(008) VALUE ZEROS.
-               05  S0001-DV-CONTA          PIC  X(002) VALUE ZEROS.
+               05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
+               05  S0001-CONTA             PIC  9(008) VALUE 12345678.
+               05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
                05  S0001-NOME              PIC  X(040) VALUE SPACES.
                05  S0001-CPF               PIC  9(011) VALUE ZEROS.
                05  S0001-DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
@@ -202,6 +202,14 @@
       *------------------------------------------------------------------------
       *
            PERFORM 0X1000-VALIDAR-AGENCIA
+           PERFORM 0X2000-VALIDAR-CONTA
+      * Validar nome
+           IF S0001-NOME EQUAL SPACES
+               MOVE 05 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Nome de entrada igual a espaços."
+                   TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
            .
       *
        031000-SAIR.
@@ -215,7 +223,7 @@
       *  - Pesos: 5, 4, 3, 2
       *  - Módulo: 11
       *
-           IF S0001-AGENCIA(IC-ITRA:1) EQUAL ZEROS
+           IF S0001-AGENCIA EQUAL ZEROS
                MOVE 01 TO S0001-CD-RTN
                MOVE 'CTCS0001 - Número da agência igual a zero.' TO
                    S0001-TX-MSG-RTN
@@ -227,13 +235,9 @@
            PERFORM VARYING IC-ITRA FROM 1 BY 1 UNTIL IC-ITRA > 4
                MOVE S0001-AGENCIA(IC-ITRA:1) TO DIGITO
                MULTIPLY PESO-DGT BY DIGITO GIVING RESULTADO-PESO
-               DISPLAY 'PESO-DGT: ' PESO-DGT
-               DISPLAY 'DIGITO: '  DIGITO
                ADD RESULTADO-PESO TO SOMA-PESOS
                SUBTRACT 1 FROM PESO-DGT
            END-PERFORM
-      *
-           DISPLAY 'SOMA-PESOS: ' SOMA-PESOS
       *
            DIVIDE SOMA-PESOS BY 11 GIVING FILLER-QUOCIENTE
                REMAINDER RESTO
@@ -246,17 +250,63 @@
                MOVE DV-NUMERO(2:1) TO DV-CALCULADO
            END-IF
       *
-           DISPLAY 'DV-CALCULADO: ' DV-CALCULADO
-      *
            IF S0001-DV-AGENCIA NOT EQUAL DV-CALCULADO
                MOVE 02 TO S0001-CD-RTN
                MOVE "CTCS0001 - Dígito verificador da agência inválida."
                    TO S0001-TX-MSG-RTN
                PERFORM 000000-SAIR-PGM
            END-IF
+      *
+           DISPLAY 'SAIU VALIDAR-AGENCIA'
            .
 
       *
        0X1000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X2000-VALIDAR-CONTA SECTION.
+      *------------------------------------------------------------------------
+      * Conta:
+      * - formada por 8 digitos
+      * - Pesos: 9, 8, 7, 6, 5, 4, 3, 2
+      * - Módulo: 11
+      *
+           IF S0001-CONTA EQUAL ZEROS
+               MOVE 03 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Número da conta igual a zero." TO
+                   S0001-TX-MSG-RTN
+           END-IF
+      *
+           MOVE 9 TO PESO-DGT
+           MOVE ZEROS TO SOMA-PESOS
+      *
+           PERFORM VARYING IC-ITRA FROM 1 BY 1 UNTIL IC-ITRA > 8
+               MOVE S0001-CONTA(IC-ITRA:1) TO DIGITO
+               MULTIPLY DIGITO BY PESO-DGT GIVING RESULTADO-PESO
+               ADD RESULTADO-PESO TO SOMA-PESOS
+               SUBTRACT 1 FROM PESO-DGT
+           END-PERFORM
+      *
+           DIVIDE SOMA-PESOS BY 11 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO
+      *
+           SUBTRACT RESTO FROM 11 GIVING DV-NUMERO
+      *
+           IF DV-NUMERO EQUAL 10
+               MOVE "X" TO DV-CALCULADO
+           ELSE
+               MOVE DV-NUMERO(2:1) TO DV-CALCULADO
+           END-IF
+      *
+           IF S0001-DV-CONTA NOT EQUAL DV-CALCULADO
+               MOVE 04 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Digito verificador da conta invalido."
+                   TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+           .
+      *
+       0X2000-SAIR.
            EXIT SECTION
            .
