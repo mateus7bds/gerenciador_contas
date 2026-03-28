@@ -4,7 +4,7 @@
        PROGRAM-ID. CTCS0001.
       *------------------------------------------------------------------------
       * PROGRAMADOR....: Mateus Barbosa da Silva
-      * Sigla..........: CTC - Controle de contas
+      * SIGLA..........: CTC - Controle de contas
       * OBJETIVO.......: permitir a inclusao, alteração e exclusão de
       * contas bancárias simples
       * DATA DE CRIACAO: 21/03/2026
@@ -43,6 +43,7 @@
            03  CPF               PIC  9(011).
            03  DATA-NASCIMENTO   PIC  X(008).
            03  SALDO             PIC  9(008)V99.
+      *
       *------------------------------------------------------------------------
        WORKING-STORAGE SECTION.
       *------------------------------------------------------------------------
@@ -89,6 +90,16 @@
        01  DV-NUMERO                PIC  9(002) VALUE ZEROS.
        01  DV-CALCULADO             PIC  X(001) VALUE SPACE.
       *
+       01  VRV-TRT-STRING.
+           03  FLAG-ESP             PIC  9(001) VALUE ZEROS.
+           03  CCT-STRING           PIC  X(001) VALUE SPACE.
+           03  STRING-ENTD          PIC  X(080) VALUE SPACES.
+           03  STRING-SAID          PIC  X(080) VALUE SPACES.
+           03  DOIS-CCT             PIC  X(002) VALUE SPACES.
+       01  ALFABETO                 PIC  X(052) VALUE
+           "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".
+       01  FLAG-LETRA               PIC  9(001) VALUE ZERO.
+      *
       * Nao ha como utilizar o LINKAGE SECTION no OpenCOBOL, entao
       * defini uma variavel que funcionaria de forma semelhante ao
       * COMMAREA
@@ -104,7 +115,7 @@
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
                05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
-               05  S0001-NOME              PIC  X(040) VALUE SPACES.
+               05  S0001-NOME              PIC  X(080) VALUE SPACES.
                05  S0001-CPF               PIC  9(011) VALUE ZEROS.
                05  S0001-DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
            03  S0001-VRV-RTN.
@@ -203,13 +214,9 @@
       *
            PERFORM 0X1000-VALIDAR-AGENCIA
            PERFORM 0X2000-VALIDAR-CONTA
-      * Validar nome
-           IF S0001-NOME EQUAL SPACES
-               MOVE 05 TO S0001-CD-RTN
-               MOVE "CTCS0001 - Nome de entrada igual a espaços."
-                   TO S0001-TX-MSG-RTN
-               PERFORM 000000-SAIR-PGM
-           END-IF
+           PERFORM 0X3100-VALIDAR-CCT-NOME
+           PERFORM 0X3200-TRATAR-NOME
+           DISPLAY 'S0001-NOME: ' S0001-NOME
            .
       *
        031000-SAIR.
@@ -308,5 +315,89 @@
            .
       *
        0X2000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X3200-TRATAR-NOME SECTION.
+      *------------------------------------------------------------------------
+      * Entrada: S0001-NOME
+      * Saida..: STRING-SAID para o S0001-NOME
+      *
+           MOVE FUNCTION TRIM(S0001-NOME) TO S0001-NOME
+      *
+      * inicializo a string de saida
+           MOVE SPACES TO STRING-SAID
+      * considero que o caracter anterior nao eh espaco
+           MOVE ZERO TO FLAG-ESP
+      * itero sobre cada caracter da string
+           PERFORM VARYING IC-ITRA FROM 1 BY 1
+               UNTIL IC-ITRA > LENGTH OF STRING-ENTD
+      * extraio o caracter
+               MOVE STRING-ENTD(IC-ITRA:1) TO CCT-STRING
+      * se for espaco, ignore, passe para a proxima iteracao e sinalize
+               IF CCT-STRING EQUAL SPACE
+                   MOVE 1 TO FLAG-ESP
+                   CONTINUE
+               END-IF
+      * se o caracter nao for um espaco
+               IF CCT-STRING NOT EQUAL SPACE
+      * se nao for o primeiro caracter e o caracter anterior for um
+      * espaco
+                   IF IC-ITRA NOT EQUAL 1 AND FLAG-ESP EQUAL 1
+      * string saida = string-saida + # (representa o espaco) + cct atual
+                       STRING STRING-SAID   DELIMITED BY SIZE
+                              "#"           DELIMITED BY SIZE
+                              CCT-STRING    DELIMITED BY SIZE
+                              INTO STRING-SAID
+                   ELSE
+      * string saida = string saida + cct atual
+                       STRING STRING-SAID   DELIMITED BY SIZE
+                              CCT-STRING    DELIMITED BY SIZE
+                              INTO STRING-SAID
+                   END-IF
+                   MOVE 0 TO FLAG-ESP
+               END-IF
+           END-PERFORM
+      *
+           INSPECT STRING-SAID REPLACING ALL "#" BY SPACE
+      *
+           MOVE STRING-SAID TO S0001-NOME
+           .
+      *
+       0X3200-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X3100-VALIDAR-CCT-NOME SECTION.
+      *------------------------------------------------------------------------
+      * verifica se o nome possui apenas espacos
+           IF S0001-NOME EQUAL SPACES
+               MOVE 05 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Nome de entrada igual a espaços."
+                   TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+      * percorre cada caracter do nome para validar todos os caracteres
+           PERFORM VARYING IC-ITRA FROM 1 BY 1
+               UNTIL IC-ITRA > LENGTH OF S0001-NOME
+      * extrai o caracter
+               MOVE S0001-NOME(IC-ITRA:1) TO CCT-STRING
+      * verifica se o caracter se encontra no alfabeto
+               INSPECT ALFABETO TALLYING FLAG-LETRA
+                   FOR ALL CCT-STRING
+      * se nao for letra nem espaco, lanca-se um erro
+               IF (FLAG-LETRA NOT EQUAL 1) AND
+                  (CCT-STRING NOT EQUAL SPACE)
+                   MOVE 06 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Foram encontrados "
+                          "caracteres invalidos "
+                          "nome do cliente."
+                      DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+               END-IF
+           END-PERFORM
+           .
+      *
+       0X3100-SAIR.
            EXIT SECTION
            .
