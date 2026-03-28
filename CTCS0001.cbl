@@ -361,7 +361,7 @@
       *
            INSPECT STRING-SAID REPLACING ALL "#" BY SPACE
       *
-           MOVE STRING-SAID TO S0001-NOME
+           MOVE FUNCTION TRIM(STRING-SAID) TO S0001-NOME
            .
       *
        0X3200-SAIR.
