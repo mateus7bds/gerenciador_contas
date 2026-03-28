@@ -99,6 +99,26 @@
        01  ALFABETO                 PIC  X(052) VALUE
            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".
        01  FLAG-LETRA               PIC  9(001) VALUE ZERO.
+      * Variaveis - Validacao do CPF
+       01  VRV-VLDC-CPF.
+           03  CPF-ENTD              PIC  9(011) VALUE ZEROS.
+           03  FILLER-CPF REDEFINES CPF-ENTD.
+               05  BASE-CPF-ENTD     PIC  9(009).
+               05  DV-CPF-ENTD       PIC  X(002).
+           03  DV-CLCD-CMT           PIC  X(002) VALUE ZEROS.
+           03  VRV-CLC-SMAT.
+               05  SMAT-PESOS             PIC  9(005) VALUE ZEROS.
+               05  PESO-DGTO              PIC  9(002) VALUE ZEROS.
+               05  PSC-DGTO-ULT-CLC       PIC  9(002) VALUE ZEROS.
+               05  RESTO-CLCD-DV          PIC  9(002) VALUE ZEROS.
+               05  PESO-CLCD              PIC  9(004) VALUE ZEROS.
+               05  DV-CLCD                PIC  9(001) VALUE ZEROS.
+      * ATENCAO: essa variavel ja existe, vou refatorar o programa depois
+      *         05  FILLER-QUOCIENTE       PIC  9(002) VALUE ZEROS.
+           03  DGTO-ATUAL                 PIC  9(001) VALUE ZEROS.
+           03  VRV-DGTO-CLCD.
+               05  PRMO-DV                PIC  9(001) VALUE ZEROS.
+               05  SGDO-DV                PIC  9(001) VALUE ZEROS.
       *
       * Nao ha como utilizar o LINKAGE SECTION no OpenCOBOL, entao
       * defini uma variavel que funcionaria de forma semelhante ao
@@ -115,8 +135,10 @@
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
                05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
-               05  S0001-NOME              PIC  X(080) VALUE SPACES.
-               05  S0001-CPF               PIC  9(011) VALUE ZEROS.
+               05  S0001-NOME              PIC  X(080) VALUE
+                   "    MATEUS        BARBOSA  DA SILVA".
+               05  S0001-CPF               PIC  9(011) VALUE
+                   18727199703.
                05  S0001-DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
            03  S0001-VRV-RTN.
                05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
@@ -150,6 +172,8 @@
            .
       *
        000000-SAIR-PGM.
+           DISPLAY 'S0001-CD-RTN....: ' S0001-CD-RTN
+           DISPLAY 'S0001-TX-MSG-RTN: ' S0001-TX-MSG-RTN
            CLOSE ARQ-CONTAS
            GOBACK
            .
@@ -216,7 +240,9 @@
            PERFORM 0X2000-VALIDAR-CONTA
            PERFORM 0X3100-VALIDAR-CCT-NOME
            PERFORM 0X3200-TRATAR-NOME
-           DISPLAY 'S0001-NOME: ' S0001-NOME
+           MOVE S0001-CPF TO CPF-ENTD
+           PERFORM 0X3300-VALIDAR-CPF
+           DISPLAY 'TODOS OS DADOS VALIDADOS ATE AGORA'
            .
       *
        031000-SAIR.
@@ -263,8 +289,6 @@
                    TO S0001-TX-MSG-RTN
                PERFORM 000000-SAIR-PGM
            END-IF
-      *
-           DISPLAY 'SAIU VALIDAR-AGENCIA'
            .
 
       *
@@ -324,16 +348,15 @@
       * Saida..: STRING-SAID para o S0001-NOME
       *
            MOVE FUNCTION TRIM(S0001-NOME) TO S0001-NOME
-      *
       * inicializo a string de saida
            MOVE SPACES TO STRING-SAID
       * considero que o caracter anterior nao eh espaco
            MOVE ZERO TO FLAG-ESP
       * itero sobre cada caracter da string
            PERFORM VARYING IC-ITRA FROM 1 BY 1
-               UNTIL IC-ITRA > LENGTH OF STRING-ENTD
+               UNTIL IC-ITRA > LENGTH OF S0001-NOME
       * extraio o caracter
-               MOVE STRING-ENTD(IC-ITRA:1) TO CCT-STRING
+               MOVE S0001-NOME(IC-ITRA:1) TO CCT-STRING
       * se for espaco, ignore, passe para a proxima iteracao e sinalize
                IF CCT-STRING EQUAL SPACE
                    MOVE 1 TO FLAG-ESP
@@ -345,13 +368,13 @@
       * espaco
                    IF IC-ITRA NOT EQUAL 1 AND FLAG-ESP EQUAL 1
       * string saida = string-saida + # (representa o espaco) + cct atual
-                       STRING STRING-SAID   DELIMITED BY SIZE
+                       STRING STRING-SAID   DELIMITED BY SPACE
                               "#"           DELIMITED BY SIZE
                               CCT-STRING    DELIMITED BY SIZE
                               INTO STRING-SAID
                    ELSE
       * string saida = string saida + cct atual
-                       STRING STRING-SAID   DELIMITED BY SIZE
+                       STRING STRING-SAID   DELIMITED BY SPACE
                               CCT-STRING    DELIMITED BY SIZE
                               INTO STRING-SAID
                    END-IF
@@ -383,6 +406,7 @@
       * extrai o caracter
                MOVE S0001-NOME(IC-ITRA:1) TO CCT-STRING
       * verifica se o caracter se encontra no alfabeto
+               MOVE ZERO TO FLAG-LETRA
                INSPECT ALFABETO TALLYING FLAG-LETRA
                    FOR ALL CCT-STRING
       * se nao for letra nem espaco, lanca-se um erro
@@ -391,7 +415,7 @@
                    MOVE 06 TO S0001-CD-RTN
                    STRING "CTCS0001 - Foram encontrados "
                           "caracteres invalidos "
-                          "nome do cliente."
+                          "no nome do cliente."
                       DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
                    PERFORM 000000-SAIR-PGM
                END-IF
@@ -399,5 +423,85 @@
            .
       *
        0X3100-SAIR.
+           EXIT SECTION
+           .
+      *-----------------------------------------------------------------
+       0X3300-VALIDAR-CPF SECTION.
+      * ----------------------------------------------------------------
+      * Entrada: CPF-ENTD
+      * Saida..: sem saida
+      *
+      * Extrai os digitos verificadores e compara os que são calculados
+      * a seguir
+      *
+      * Entrada: SMAT-PESOS, PESO-DGTO, PSC-DGTO-ULT-CLC
+      * Saida>.: DV-CLCD-CMT
+      *
+      * 1 - Calculo do primeiro digito verificador
+      *
+           MOVE 00 TO SMAT-PESOS
+           MOVE 10 TO PESO-DGTO
+           MOVE 09 TO PSC-DGTO-ULT-CLC
+           PERFORM 110000-CALCULAR-DV
+           MOVE DV-CLCD TO PRMO-DV
+      *
+      * 2 - Calcular o segundo digito verificador
+      *
+           MOVE 00 TO SMAT-PESOS
+           MOVE 11 TO PESO-DGTO
+           MOVE 10 TO PSC-DGTO-ULT-CLC
+           PERFORM 110000-CALCULAR-DV
+           MOVE DV-CLCD TO SGDO-DV
+      *
+           MOVE PRMO-DV TO DV-CLCD-CMT(1:1)
+           MOVE SGDO-DV TO DV-CLCD-CMT(2:1)
+      *
+           IF DV-CLCD-CMT NOT EQUAL DV-CPF-ENTD
+               MOVE 07 TO S0001-CD-RTN
+               MOVE "CTCS0001 - CPF invalido." TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+      *
+           EXIT SECTION
+           .
+      * ----------------------------------------------------------------
+       110000-CALCULAR-DV SECTION.
+      * ----------------------------------------------------------------
+      * Entrada:
+      *
+      *    - SMAT-PESOS       PIC  9(005)
+      *    - PESO-DGTO        PIC  9(002)
+      *      PSC-DGTO-ULT-CLC PIC  9(002)
+      * Saida:
+      *    - DV-CLCD          PIC  9(001)
+      *
+           PERFORM VARYING IC-ITRA FROM 1 BY 1
+               UNTIL IC-ITRA > PSC-DGTO-ULT-CLC
+      * se for o calculo do segundo digito verificador (inclui
+      * o primeiro digito verificador calculado - 10º posicao)
+               IF IC-ITRA EQUAL 10 AND PSC-DGTO-ULT-CLC EQUAL 10
+                   MOVE PRMO-DV TO DGTO-ATUAL
+               ELSE
+                   MOVE BASE-CPF-ENTD(IC-ITRA:1) TO DGTO-ATUAL
+               END-IF
+      * multiplica o ditito atual com o peso correspondente
+               MULTIPLY DGTO-ATUAL BY PESO-DGTO GIVING PESO-CLCD
+      * adiciona ao somatorio de pesos
+               ADD PESO-CLCD TO SMAT-PESOS
+      * subtrai 1 do peso do digito para a proxima iteracao
+               SUBTRACT 1 FROM PESO-DGTO
+           END-PERFORM
+      *
+           DIVIDE SMAT-PESOS BY 11 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO-CLCD-DV
+      *
+           SUBTRACT 11 FROM RESTO-CLCD-DV
+      *
+           IF RESTO-CLCD-DV EQUAL 10
+               MOVE 00 TO RESTO-CLCD-DV
+           END-IF
+      *
+           MOVE RESTO-CLCD-DV TO DV-CLCD
+      *
            EXIT SECTION
            .
