@@ -442,7 +442,7 @@
            MOVE 00 TO SMAT-PESOS
            MOVE 10 TO PESO-DGTO
            MOVE 09 TO PSC-DGTO-ULT-CLC
-           PERFORM 110000-CALCULAR-DV
+           PERFORM 0X3310-CALCULAR-DV
            MOVE DV-CLCD TO PRMO-DV
       *
       * 2 - Calcular o segundo digito verificador
@@ -450,7 +450,7 @@
            MOVE 00 TO SMAT-PESOS
            MOVE 11 TO PESO-DGTO
            MOVE 10 TO PSC-DGTO-ULT-CLC
-           PERFORM 110000-CALCULAR-DV
+           PERFORM 0X3310-CALCULAR-DV
            MOVE DV-CLCD TO SGDO-DV
       *
            MOVE PRMO-DV TO DV-CLCD-CMT(1:1)
@@ -461,11 +461,13 @@
                MOVE "CTCS0001 - CPF invalido." TO S0001-TX-MSG-RTN
                PERFORM 000000-SAIR-PGM
            END-IF
+           .
       *
+       0X3300-SAIR.
            EXIT SECTION
            .
       * ----------------------------------------------------------------
-       110000-CALCULAR-DV SECTION.
+       0X3310-CALCULAR-DV SECTION.
       * ----------------------------------------------------------------
       * Entrada:
       *
@@ -502,6 +504,8 @@
            END-IF
       *
            MOVE RESTO-CLCD-DV TO DV-CLCD
+           .
       *
+       0X3310-SAIR.
            EXIT SECTION
            .
