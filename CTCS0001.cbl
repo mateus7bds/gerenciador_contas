@@ -99,6 +99,8 @@
        01  ALFABETO                 PIC  X(052) VALUE
            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".
        01  FLAG-LETRA               PIC  9(001) VALUE ZERO.
+       01  NUMEROS                  PIC  X(010) VALUE "0123456789".
+       01  FLAG-NUMERO              PIC  9(001) VALUE ZERO.
       * Variaveis - Validacao do CPF
        01  VRV-VLDC-CPF.
            03  CPF-ENTD              PIC  9(011) VALUE ZEROS.
@@ -119,6 +121,18 @@
            03  VRV-DGTO-CLCD.
                05  PRMO-DV                PIC  9(001) VALUE ZEROS.
                05  SGDO-DV                PIC  9(001) VALUE ZEROS.
+      *
+       01  VRV-VLDC-DATA.
+           03  DIA-VLDC                   PIC  9(002) VALUE ZEROS.
+           03  MES-VLDC                   PIC  9(002) VALUE ZEROS.
+           03  ANO-VLDC                   PIC  9(004) VALUE ZEROS.
+      *
+       01  DIA-LIMITE-MES                 PIC  9(002) VALUE ZEROS.
+      *
+       01  VRV-CLCD-DIAS-MES-2.
+           03  RESTO-400                  PIC  9(002) VALUE ZEROS.
+           03  RESTO-100                  PIC  9(002) VALUE ZEROS.
+           03  RESTO-4                    PIC  9(002) VALUE ZEROS.
       *
       * Nao ha como utilizar o LINKAGE SECTION no OpenCOBOL, entao
       * defini uma variavel que funcionaria de forma semelhante ao
@@ -227,6 +241,7 @@
       *------------------------------------------------------------------------
       *
            PERFORM 031000-VALIDAR-DD-CRIAR-CONTA
+      * ATENCAO: adicao da funcao de inclusao de conta corrente no arquivo VSAM
            .
       *
        030000-SAIR.
@@ -243,6 +258,8 @@
            MOVE S0001-CPF TO CPF-ENTD
            PERFORM 0X3300-VALIDAR-CPF
            DISPLAY 'TODOS OS DADOS VALIDADOS ATE AGORA'
+           PERFORM 0X3400-VALIDAR-DATA
+      * ATENCAO: validacao da data
            .
       *
        031000-SAIR.
@@ -507,5 +524,109 @@
            .
       *
        0X3310-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X3400-VALIDAR-DATA SECTION.
+      *------------------------------------------------------------------------
+      * verifica os caracteres da data
+           PERFORM VARYING IC-ITRA FROM 1 BY 1
+               UNTIL IC-ITRA > LENGTH OF S0001-DATA-NASCIMENTO
+               MOVE S0001-DATA-NASCIMENTO(IC-ITRA:1) TO CCT-STRING
+               MOVE ZERO TO FLAG-NUMERO
+               INSPECT NUMEROS TALLYING FLAG-NUMERO FOR ALL CCT-STRING
+               IF FLAG-NUMERO NOT EQUAL 1
+                   MOVE 08 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Caracter invalido na data de "
+                          "nascimento." DELIMITED BY SIZE
+                          INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+               END-IF
+           END-PERFORM
+      * extrai o dia, mes e ano da data de entrada
+           MOVE S0001-DATA-NASCIMENTO TO VRV-VLDC-DATA
+      * obtem o numero maximo de dias do mes
+           PERFORM 0X3410-OBTER-QTD-DIAS-MES
+      * verifica, de acordo com o mes, se o dia esta dentro da faixa
+      * limite de dias do mes
+           IF NOT (DIA-VLDC >= 1 OR DIA-VLDC <= DIA-LIMITE-MES)
+               MOVE 10 TO S0001-CD-RTN
+               STRING "CTCS0001 - Quantidade de dias do"
+                      " mês torna a data invalida." DELIMITED BY SIZE
+                      INTO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+      * verifica se o ano de nascimento eh anterior ao ano vigente
+           IF ANO-VLDC >= ANO OF DIA-HORARIO-CORRENTE
+               MOVE 11 TO S0001-CD-RTN
+               STRING "CTCS0001 - Ano de nascimetno deve "
+                      "ser menor que o ano vigente." DELIMITED BY SIZE
+                      INTO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+           .
+      *
+       0X3400-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X3410-OBTER-QTD-DIAS-MES SECTION.
+      *------------------------------------------------------------------------
+      * Entrada: MES-VLDC
+      * Saida..: DIA-LIMITE-MES
+      *
+           EVALUATE MES-VLDC
+               WHEN 1
+               WHEN 3
+               WHEN 5
+               WHEN 7
+               WHEN 8
+               WHEN 10
+               WHEN 12
+                   MOVE 31 TO DIA-LIMITE-MES
+               WHEN 4
+               WHEN 6
+               WHEN 9
+               WHEN 11
+                   MOVE 30 TO DIA-LIMITE-MES
+               WHEN 2
+                   PERFORM 0X3411-CALCULAR-DIAS-MES-2
+               WHEN OTHER
+                   MOVE 09 TO S0001-CD-RTN
+                   MOVE "CTCS0001 - Mes da data de nascimento invalido."
+                      TO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+           END-EVALUATE
+           .
+      *
+       0X3410-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       0X3411-CALCULAR-DIAS-MES-2 SECTION.
+      *------------------------------------------------------------------------
+      * Entrada: ANO-VLDC
+      * Saida..: DIA-LIMITE-MES
+           MOVE ZEROS TO FILLER-QUOCIENTE
+           DIVIDE ANO-VLDC BY 400 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO-400
+      *
+           MOVE ZEROS TO FILLER-QUOCIENTE
+           DIVIDE ANO-VLDC BY 100 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO-100
+      *
+           MOVE ZEROS TO FILLER-QUOCIENTE
+           DIVIDE ANO-VLDC BY 4 GIVING FILLER-QUOCIENTE
+               REMAINDER RESTO-4
+      *
+           IF (RESTO-4 EQUAL 0 AND RESTO-100 NOT EQUAL 100) OR
+               RESTO-400 EQUAL 0
+               MOVE 29 TO DIA-LIMITE-MES
+           ELSE
+               MOVE 28 TO DIA-LIMITE-MES
+           END-IF
+           .
+      *
+       0X3411-SAIR.
            EXIT SECTION
            .
