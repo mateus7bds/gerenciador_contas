@@ -153,7 +153,8 @@
                    "    MATEUS        BARBOSA  DA SILVA".
                05  S0001-CPF               PIC  9(011) VALUE
                    18727199703.
-               05  S0001-DATA-NASCIMENTO   PIC  X(008) VALUE ZEROS.
+               05  S0001-DATA-NASCIMENTO   PIC  X(008)
+                   VALUE "28022023".
            03  S0001-VRV-RTN.
                05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
                05  S0001-TX-MSG-RTN        PIC  X(080) VALUE SPACES.
@@ -549,7 +550,7 @@
            PERFORM 0X3410-OBTER-QTD-DIAS-MES
       * verifica, de acordo com o mes, se o dia esta dentro da faixa
       * limite de dias do mes
-           IF NOT (DIA-VLDC >= 1 OR DIA-VLDC <= DIA-LIMITE-MES)
+           IF DIA-VLDC < 1 OR DIA-VLDC > DIA-LIMITE-MES
                MOVE 10 TO S0001-CD-RTN
                STRING "CTCS0001 - Quantidade de dias do"
                       " mês torna a data invalida." DELIMITED BY SIZE
