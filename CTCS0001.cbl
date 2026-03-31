@@ -37,8 +37,11 @@
        FD  ARQ-CONTAS.
       *
        01  REGISTRO-CONTAS.
-           03  AGENCIA           PIC  9(008).
-           03  CONTA             PIC  9(008).
+           03  CONTA-CHAVE.
+               05  AGENCIA       PIC  9(008).
+               05  CONTA         PIC  9(008).
+           03  DV-AGENCIA        PIC  X(001).
+           03  DV-CONTA          PIC  X(001).
            03  NOME              PIC  X(040).
            03  CPF               PIC  9(011).
            03  DATA-NASCIMENTO   PIC  X(008).
@@ -134,6 +137,12 @@
            03  RESTO-100                  PIC  9(002) VALUE ZEROS.
            03  RESTO-4                    PIC  9(002) VALUE ZEROS.
       *
+       01  FIM-ARQ-CONTAS                 PIC  X(001).
+           88  SIM-FIM                                VALUE "S".
+           88  NAO-FIM                                VALUE "N".
+      *
+       01  ID-ULTIMA-CT                   PIC  9(004) VALUE ZEROS.
+      *
       * Nao ha como utilizar o LINKAGE SECTION no OpenCOBOL, entao
       * defini uma variavel que funcionaria de forma semelhante ao
       * COMMAREA
@@ -154,7 +163,7 @@
                05  S0001-CPF               PIC  9(011) VALUE
                    18727199703.
                05  S0001-DATA-NASCIMENTO   PIC  X(008)
-                   VALUE "28022023".
+                   VALUE "10032002".
            03  S0001-VRV-RTN.
                05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
                05  S0001-TX-MSG-RTN        PIC  X(080) VALUE SPACES.
@@ -175,7 +184,7 @@
                WHEN 1
                    PERFORM 030000-CRIAR-CONTA
                WHEN 2
-      *             PERFORM 030000-ATUALIZAR-CC
+      *             PERFORM 040000-ATUALIZAR-CONTA
                     DISPLAY 'ATUALIZAR CONTA CORRENTE'
                WHEN 3
       *             PERFORM 040000-EXCLUIR-CC
@@ -183,7 +192,6 @@
                WHEN OTHER
                    DISPLAY 'OPCAO INVALIDA'
            END-EVALUATE
-
            .
       *
        000000-SAIR-PGM.
@@ -215,7 +223,7 @@
            STRING 'C:\Users\F7021226\'          DELIMITED BY SIZE
                   'Documents\projetos_pessoais' DELIMITED BY SIZE
                   '\cobol\gerenciador_cc\'      DELIMITED BY SIZE
-                  'ARQ-CONTAS.TXT'              DELIMITED BY SIZE
+                  'ARQ-CONTAS.dat'              DELIMITED BY SIZE
            INTO CAMINHO-ARQ-CONTAS
       *
       * Tenta abrir o arquivo apenas para consulta e verificar se existe
@@ -242,7 +250,8 @@
       *------------------------------------------------------------------------
       *
            PERFORM 031000-VALIDAR-DD-CRIAR-CONTA
-      * ATENCAO: adicao da funcao de inclusao de conta corrente no arquivo VSAM
+      *
+           PERFORM 032000-INCLUIR-CONTA
            .
       *
        030000-SAIR.
@@ -301,6 +310,8 @@
                MOVE DV-NUMERO(2:1) TO DV-CALCULADO
            END-IF
       *
+           DISPLAY "Digito verificador da agência: " DV-CALCULADO
+      *
            IF S0001-DV-AGENCIA NOT EQUAL DV-CALCULADO
                MOVE 02 TO S0001-CD-RTN
                MOVE "CTCS0001 - Dígito verificador da agência inválida."
@@ -347,6 +358,8 @@
            ELSE
                MOVE DV-NUMERO(2:1) TO DV-CALCULADO
            END-IF
+      *
+           DISPLAY "Digito verificador da conta: " DV-CALCULADO
       *
            IF S0001-DV-CONTA NOT EQUAL DV-CALCULADO
                MOVE 04 TO S0001-CD-RTN
@@ -629,5 +642,57 @@
            .
       *
        0X3411-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       032000-INCLUIR-CONTA SECTION.
+      *------------------------------------------------------------------------
+      * Move a agencia e a conta para posterior pesquisa na base de
+      * dados
+           MOVE S0001-AGENCIA         TO AGENCIA
+           MOVE S0001-CONTA           TO CONTA
+      * Procura nos registros, se ha algum registro com a conta
+      * registrada
+           READ ARQ-CONTAS
+               INTO REGISTRO-CONTAS
+               KEY IS CONTA-CHAVE
+               INVALID KEY
+                   CONTINUE
+      * se encontrar algum registro com a agencia e a conta ja
+      * cadastrada, lanca-se um erro
+               NOT INVALID KEY
+                   MOVE 10 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Conta ja esta cadastrada. "
+                          " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                          DELIMITED BY SIZE
+                       INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+           END-READ
+      * movendo para a variavel que corresponde ao registro os dados
+      * para posterior armazenamento
+           MOVE S0001-AGENCIA         TO AGENCIA
+           MOVE S0001-DV-AGENCIA      TO DV-AGENCIA
+           MOVE S0001-CONTA           TO CONTA
+           MOVE S0001-DV-CONTA        TO DV-CONTA
+           MOVE S0001-NOME            TO NOME
+           MOVE S0001-CPF             TO CPF
+           MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
+           MOVE 0,1                   TO SALDO
+      * salvando os dados da conta
+           WRITE REGISTRO-CONTAS
+               INVALID KEY
+                   MOVE 11 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Erro ao salvar a conta."
+                          " - STATUS CODE=" STATUS-ARQ-CONTAS "."
+                          DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+               NOT INVALID KEY
+                   MOVE ZEROS TO S0001-CD-RTN
+                   MOVE "CTCS0001 - Conta criada com sucesso." TO
+                       S0001-TX-MSG-RTN
+           END-WRITE
+      *
+           .
+      *
+       032000-SAIR.
            EXIT SECTION
            .
