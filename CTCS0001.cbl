@@ -25,7 +25,7 @@
            ASSIGN TO CAMINHO-ARQ-CONTAS
            ORGANIZATION IS INDEXED
            ACCESS MODE IS DYNAMIC
-           RECORD KEY IS REGISTRO-CONTAS
+           RECORD KEY IS REGISTRO-GERAL-CONTAS
            FILE STATUS IS STATUS-ARQ-CONTAS
            .
       *------------------------------------------------------------------------
@@ -36,10 +36,13 @@
       *
        FD  ARQ-CONTAS.
       *
-       01  REGISTRO-CONTAS.
-           03  CONTA-CHAVE.
-               05  AGENCIA       PIC  9(008).
-               05  CONTA         PIC  9(008).
+       01  REGISTRO-GERAL-CONTAS.
+           03  ID-CONTA          PIC  9(008).
+           03  RESTANTE          PIC  X(071).
+      *
+       01  REGISTRO-CONTAS REDEFINES REGISTRO-GERAL-CONTAS.
+           03  AGENCIA           PIC  9(008).
+           03  CONTA             PIC  9(008).
            03  DV-AGENCIA        PIC  X(001).
            03  DV-CONTA          PIC  X(001).
            03  NOME              PIC  X(040).
@@ -153,17 +156,17 @@
       *
        01  COMMAREA.
            03  S0001-ENTD-PROGRAMA.
-               05  S0001-OPERACAO          PIC  9(002) VALUE 1.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 2.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
                05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
                05  S0001-NOME              PIC  X(080) VALUE
-                   "    MATEUS        BARBOSA  DA SILVA".
+                   "    MATEUS   BARBOSA  DA  SILVA".
                05  S0001-CPF               PIC  9(011) VALUE
                    18727199703.
                05  S0001-DATA-NASCIMENTO   PIC  X(008)
-                   VALUE "10032002".
+                   VALUE "11032002".
            03  S0001-VRV-RTN.
                05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
                05  S0001-TX-MSG-RTN        PIC  X(080) VALUE SPACES.
@@ -184,8 +187,7 @@
                WHEN 1
                    PERFORM 030000-CRIAR-CONTA
                WHEN 2
-      *             PERFORM 040000-ATUALIZAR-CONTA
-                    DISPLAY 'ATUALIZAR CONTA CORRENTE'
+                   PERFORM 040000-ATUALIZAR-CONTA
                WHEN 3
       *             PERFORM 040000-EXCLUIR-CC
                     DISPLAY 'EXCLUIR CONTA CORRENTE'
@@ -222,24 +224,21 @@
       *
            STRING 'C:\Users\F7021226\'          DELIMITED BY SIZE
                   'Documents\projetos_pessoais' DELIMITED BY SIZE
-                  '\cobol\gerenciador_cc\'      DELIMITED BY SIZE
-                  'ARQ-CONTAS.dat'              DELIMITED BY SIZE
+                  '\cobol\gerenciador_contas\'  DELIMITED BY SIZE
+                  'arq_contas.idx'              DELIMITED BY SIZE
            INTO CAMINHO-ARQ-CONTAS
       *
       * Tenta abrir o arquivo apenas para consulta e verificar se existe
-           OPEN INPUT ARQ-CONTAS
+           OPEN I-O ARQ-CONTAS
       * Verifica se o arquivo não existe (35)
            IF STATUS-ARQ-CONTAS EQUAL "35"
                CLOSE ARQ-CONTAS
-      * Criando arquivo
+      * cria arquivo, se nao existir
                OPEN OUTPUT ARQ-CONTAS
+               CLOSE ARQ-CONTAS
+      * abre o arquivo ja criado
+               OPEN I-O ARQ-CONTAS
            END-IF
-      * Fechando o arquivo criado ou existente
-           CLOSE ARQ-CONTAS
-      * Abrindo o arquivo com a possibilidade de alterações sem perca do
-      * conteudo existente
-           OPEN I-O ARQ-CONTAS
-      *
            .
       *
        020000-SAIR.
@@ -255,6 +254,24 @@
            .
       *
        030000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       040000-ATUALIZAR-CONTA SECTION.
+      *------------------------------------------------------------------------
+      *
+           PERFORM 0X1000-VALIDAR-AGENCIA
+           PERFORM 0X2000-VALIDAR-CONTA
+      *
+           PERFORM 0X3100-VALIDAR-CCT-NOME
+           PERFORM 0X3200-TRATAR-NOME
+      *
+           PERFORM 0X3400-VALIDAR-DATA
+      *
+           PERFORM 041000-EFETIVAR-ATL-CT
+           .
+      *
+       040000-SAIR.
            EXIT SECTION
            .
       *------------------------------------------------------------------------
@@ -647,6 +664,7 @@
       *------------------------------------------------------------------------
        032000-INCLUIR-CONTA SECTION.
       *------------------------------------------------------------------------
+       DISPLAY 'ENTREI 032000-INCLUIR-CONTA'
       * Move a agencia e a conta para posterior pesquisa na base de
       * dados
            MOVE S0001-AGENCIA         TO AGENCIA
@@ -654,10 +672,7 @@
       * Procura nos registros, se ha algum registro com a conta
       * registrada
            READ ARQ-CONTAS
-               INTO REGISTRO-CONTAS
-               KEY IS CONTA-CHAVE
-               INVALID KEY
-                   CONTINUE
+               KEY IS ID-CONTA
       * se encontrar algum registro com a agencia e a conta ja
       * cadastrada, lanca-se um erro
                NOT INVALID KEY
@@ -677,22 +692,85 @@
            MOVE S0001-NOME            TO NOME
            MOVE S0001-CPF             TO CPF
            MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
-           MOVE 0,1                   TO SALDO
+           MOVE ZEROS                 TO SALDO
       * salvando os dados da conta
-           WRITE REGISTRO-CONTAS
+           WRITE REGISTRO-GERAL-CONTAS
                INVALID KEY
                    MOVE 11 TO S0001-CD-RTN
                    STRING "CTCS0001 - Erro ao salvar a conta."
                           " - STATUS CODE=" STATUS-ARQ-CONTAS "."
                           DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
                NOT INVALID KEY
                    MOVE ZEROS TO S0001-CD-RTN
                    MOVE "CTCS0001 - Conta criada com sucesso." TO
                        S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
            END-WRITE
       *
            .
       *
        032000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       041000-EFETIVAR-ATL-CT SECTION.
+      *------------------------------------------------------------------------
+           DISPLAY 'EFETIVAR ATUALIZACAO CONTA'
+      *
+      * define a chave de busca da conta na base dados
+      *
+           MOVE S0001-AGENCIA TO AGENCIA
+           MOVE S0001-CONTA   TO CONTA
+      *
+      * procura a conta no arquivo
+      *
+      *     READ ARQ-CONTAS
+      *         KEY IS CONTA-CHAVE
+      *         INVALID KEY
+      *             MOVE 11 TO S0001-CD-RTN
+      *             MOVE "CTCS0001 - Conta nao existente."
+      *                 TO S0001-TX-MSG-RTN
+      *             PERFORM 000000-SAIR-PGM
+      *         NOT INVALID KEY
+      *             DISPLAY REGISTRO-CONTAS
+      *     END-READ
+      *
+           READ ARQ-CONTAS
+               KEY IS ID-CONTA
+           END-READ
+      *
+           IF STATUS-ARQ-CONTAS NOT EQUAL "00"
+               MOVE 11 TO S0001-CD-RTN
+               MOVE "CTCS0001 - Conta nao existente."
+                  TO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+      *
+      * mantem os dados anteriores, so atualizando o nome e
+      * a data de nascimento
+      *
+           DISPLAY 'REGISTRO-GERAL-CONTAS: ' REGISTRO-GERAL-CONTAS
+      *
+           MOVE S0001-NOME            TO NOME
+           MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
+      *
+           DISPLAY 'REGISTRO-GERAL-CONTAS: ' REGISTRO-GERAL-CONTAS
+      *
+           REWRITE REGISTRO-GERAL-CONTAS
+               INVALID KEY
+                   MOVE 12 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Erro ao atualizar a conta. "
+                          " - STATUS CODE=" STATUS-ARQ-CONTAS "."
+                          DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+               NOT INVALID KEY
+                   MOVE 0 TO S0001-CD-RTN
+                   MOVE "CTCS0001 - Conta atualizada com sucesso." TO
+                      S0001-TX-MSG-RTN
+           END-REWRITE
+           .
+      *
+       041000-SAIR.
            EXIT SECTION
            .
