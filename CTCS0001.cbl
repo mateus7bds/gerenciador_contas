@@ -24,7 +24,7 @@
        SELECT ARQ-CONTAS
            ASSIGN TO CAMINHO-ARQ-CONTAS
            ORGANIZATION IS INDEXED
-           ACCESS MODE IS DYNAMIC
+           ACCESS MODE IS SEQUENTIAL
            RECORD KEY IS REGISTRO-GERAL-CONTAS
            FILE STATUS IS STATUS-ARQ-CONTAS
            .
@@ -34,8 +34,7 @@
        FILE SECTION.
       *------------------------------------------------------------------------
       *
-       FD  ARQ-CONTAS.
-      *
+       FD  ARQ-CONTAS RECORDING MODE IS F.
        01  REGISTRO-GERAL-CONTAS.
            03  ID-CONTA          PIC  9(008).
            03  RESTANTE          PIC  X(071).
@@ -156,7 +155,7 @@
       *
        01  COMMAREA.
            03  S0001-ENTD-PROGRAMA.
-               05  S0001-OPERACAO          PIC  9(002) VALUE 2.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 1.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
@@ -232,7 +231,6 @@
            OPEN I-O ARQ-CONTAS
       * Verifica se o arquivo não existe (35)
            IF STATUS-ARQ-CONTAS EQUAL "35"
-               CLOSE ARQ-CONTAS
       * cria arquivo, se nao existir
                OPEN OUTPUT ARQ-CONTAS
                CLOSE ARQ-CONTAS
@@ -669,22 +667,37 @@
       * dados
            MOVE S0001-AGENCIA         TO AGENCIA
            MOVE S0001-CONTA           TO CONTA
-      * Procura nos registros, se ha algum registro com a conta
-      * registrada
-           READ ARQ-CONTAS
-               KEY IS ID-CONTA
-      * se encontrar algum registro com a agencia e a conta ja
-      * cadastrada, lanca-se um erro
-               NOT INVALID KEY
+      *
+      * procura a conta no arquivo, se ja existir, lanca-se um erro
+      *
+      * define o status code do arquivo como zero, inicialmente
+           MOVE "00" TO STATUS-ARQ-CONTAS
+      *
+           PERFORM UNTIL STATUS-ARQ-CONTAS EQUAL "10"
+      * reinicializacao da variavel que ira receber o valor do registro
+               INITIALIZE REGISTRO-GERAL-CONTAS
+      * leitura do registro de forma sequencial
+               READ ARQ-CONTAS NEXT RECORD
+      * se for o ultimo registro
+                   AT END
+                       MOVE "10" TO STATUS-ARQ-CONTAS
+               END-READ
+      * se encontrar a conta procurada, lanca-se um erro
+               IF AGENCIA EQUAL S0001-AGENCIA
+                   AND CONTA EQUAL S0001-CONTA
                    MOVE 10 TO S0001-CD-RTN
                    STRING "CTCS0001 - Conta ja esta cadastrada. "
-                          " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
-                          DELIMITED BY SIZE
+                       " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                       DELIMITED BY SIZE
                        INTO S0001-TX-MSG-RTN
-                   PERFORM 000000-SAIR-PGM
-           END-READ
+                       PERFORM 000000-SAIR-PGM
+               END-IF
+           END-PERFORM
+      * indo criar a conta
+      *
       * movendo para a variavel que corresponde ao registro os dados
       * para posterior armazenamento
+           INITIALIZE REGISTRO-CONTAS
            MOVE S0001-AGENCIA         TO AGENCIA
            MOVE S0001-DV-AGENCIA      TO DV-AGENCIA
            MOVE S0001-CONTA           TO CONTA
@@ -693,6 +706,7 @@
            MOVE S0001-CPF             TO CPF
            MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
            MOVE ZEROS                 TO SALDO
+      *
       * salvando os dados da conta
            WRITE REGISTRO-GERAL-CONTAS
                INVALID KEY
@@ -716,7 +730,7 @@
       *------------------------------------------------------------------------
        041000-EFETIVAR-ATL-CT SECTION.
       *------------------------------------------------------------------------
-           DISPLAY 'EFETIVAR ATUALIZACAO CONTA'
+           DISPLAY '041000-EFETIVAR-ATL-CT'
       *
       * define a chave de busca da conta na base dados
       *
@@ -725,27 +739,28 @@
       *
       * procura a conta no arquivo
       *
-      *     READ ARQ-CONTAS
-      *         KEY IS CONTA-CHAVE
-      *         INVALID KEY
-      *             MOVE 11 TO S0001-CD-RTN
-      *             MOVE "CTCS0001 - Conta nao existente."
-      *                 TO S0001-TX-MSG-RTN
-      *             PERFORM 000000-SAIR-PGM
-      *         NOT INVALID KEY
-      *             DISPLAY REGISTRO-CONTAS
-      *     END-READ
-      *
-           READ ARQ-CONTAS
-               KEY IS ID-CONTA
-           END-READ
-      *
-           IF STATUS-ARQ-CONTAS NOT EQUAL "00"
-               MOVE 11 TO S0001-CD-RTN
-               MOVE "CTCS0001 - Conta nao existente."
-                  TO S0001-TX-MSG-RTN
-               PERFORM 000000-SAIR-PGM
-           END-IF
+           PERFORM FOREVER
+      * reinicializacao da variavel que ira receber o valor no registro
+               INITIALIZE REGISTRO-GERAL-CONTAS
+      * leitura do registro de forma sequencial
+               READ ARQ-CONTAS NEXT RECORD
+      * se ate o ultimo registro nao for encontrada a conta,
+      * lanca-se um erro
+                   AT END
+                   IF NOT (AGENCIA EQUAL S0001-AGENCIA
+                       AND CONTA EQUAL S0001-CONTA)
+                       MOVE 11 TO S0001-CD-RTN
+                       MOVE "CTCS0001 - Conta nao existente."
+                           TO S0001-TX-MSG-RTN
+                       PERFORM 000000-SAIR-PGM
+                   END-IF
+               END-READ
+      * se encontrar um registro com a conta e a agenica, sai do loop
+               IF AGENCIA EQUAL S0001-AGENCIA
+                   AND CONTA EQUAL S0001-CONTA
+                   EXIT PERFORM
+               END-IF
+           END-PERFORM
       *
       * mantem os dados anteriores, so atualizando o nome e
       * a data de nascimento
