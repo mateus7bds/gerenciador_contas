@@ -157,13 +157,13 @@
       *
        01  COMMAREA.
            03  S0001-ENTD-PROGRAMA.
-               05  S0001-OPERACAO          PIC  9(002) VALUE 1.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 2.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
                05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
                05  S0001-NOME              PIC  X(080) VALUE
-                   "    MATEUS   BARBOSA  DA  SILVA".
+                   "    MATEUS   BARBOSA  DE   SOUZA".
                05  S0001-CPF               PIC  9(011) VALUE
                    18727199703.
                05  S0001-DATA-NASCIMENTO   PIC  X(008)
@@ -734,28 +734,19 @@
       *
       * procura a conta no arquivo
       *
-      *>      PERFORM FOREVER
-      *> * reinicializacao da variavel que ira receber o valor no registro
-      *>          INITIALIZE REGISTRO-GERAL-CONTAS
-      *> * leitura do registro de forma sequencial
-      *>          READ ARQ-CONTAS NEXT RECORD
-      *> * se ate o ultimo registro nao for encontrada a conta,
-      *> * lanca-se um erro
-      *>              AT END
-      *>              IF NOT (AGENCIA EQUAL S0001-AGENCIA
-      *>                  AND CONTA EQUAL S0001-CONTA)
-      *>                  MOVE 11 TO S0001-CD-RTN
-      *>                  MOVE "CTCS0001 - Conta nao existente."
-      *>                      TO S0001-TX-MSG-RTN
-      *>                  PERFORM 000000-SAIR-PGM
-      *>              END-IF
-      *>          END-READ
-      *> * se encontrar um registro com a conta e a agenica, sai do loop
-      *>          IF AGENCIA EQUAL S0001-AGENCIA
-      *>              AND CONTA EQUAL S0001-CONTA
-      *>              EXIT PERFORM
-      *>          END-IF
-      *>      END-PERFORM
+           READ ARQ-CONTAS
+               KEY IS ID-CONTA
+           END-READ
+      *
+           IF STATUS-ARQ-CONTAS EQUAL "00"
+               CONTINUE
+           ELSE
+               MOVE 11 TO S0001-CD-RTN
+               STRING "CTCS0001 - Erro ou conta (atualizar) nao existe."
+                      " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                      DELIMITED BY SIZE
+                      INTO S0001-TX-MSG-RTN
+           END-IF
       *
       * mantem os dados anteriores, so atualizando o nome e
       * a data de nascimento
@@ -768,6 +759,17 @@
            DISPLAY 'REGISTRO-GERAL-CONTAS: ' REGISTRO-GERAL-CONTAS
       *
            REWRITE REGISTRO-GERAL-CONTAS
+               INVALID KEY
+                   MOVE 12 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Erro ao atualizar o arquivo."
+                          " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                          DELIMITED BY SIZE
+                          INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+               NOT INVALID KEY
+                   MOVE "CTCS0001 - Conta atualizada com sucesso."
+                       TO S0001-TX-MSG-RTN
+           END-REWRITE
            .
       *
        041000-SAIR.
