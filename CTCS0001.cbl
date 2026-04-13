@@ -157,7 +157,7 @@
       *
        01  COMMAREA.
            03  S0001-ENTD-PROGRAMA.
-               05  S0001-OPERACAO          PIC  9(002) VALUE 2.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 3.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
@@ -190,10 +190,10 @@
                WHEN 2
                    PERFORM 040000-ATUALIZAR-CONTA
                WHEN 3
-      *             PERFORM 040000-EXCLUIR-CC
-                    DISPLAY 'EXCLUIR CONTA CORRENTE'
+                   PERFORM 040000-EXCLUIR-CONTA
                WHEN OTHER
-                   DISPLAY 'OPCAO INVALIDA'
+                   MOVE 99 TO S0001-CD-RTN
+                   MOVE "CTCS0001 - Opcao invalida." TO S0001-TX-MSG-RTN
            END-EVALUATE
            .
       *
@@ -773,5 +773,46 @@
            .
       *
        041000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       040000-EXCLUIR-CONTA SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE S0001-AGENCIA TO AGENCIA
+           MOVE S0001-CONTA   TO CONTA
+      *
+           READ ARQ-CONTAS
+               KEY IS ID-CONTA
+           END-READ
+      *
+           IF STATUS-ARQ-CONTAS EQUAL "00" OR "02"
+               CONTINUE
+           ELSE
+               MOVE 13 TO S0001-CD-RTN
+               STRING "CTCS0001 - Conta nao encontrada ou erro "
+                      "ao acessar base de dados."
+                      " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                      DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+               PERFORM 000000-SAIR-PGM
+           END-IF
+      *
+           MOVE S0001-AGENCIA TO AGENCIA
+           MOVE S0001-CONTA   TO CONTA
+      *
+           DELETE ARQ-CONTAS
+               INVALID KEY
+                   MOVE 14 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Erro ao excluir conta. "
+                          "- STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                          DELIMITED BY SIZE
+                          INTO S0001-TX-MSG-RTN
+               NOT INVALID KEY
+                   MOVE "CTCS0001 - Conta excluida com sucesso."
+                       TO S0001-TX-MSG-RTN
+           END-DELETE
+           .
+      *
+       040000-SAIR.
            EXIT SECTION
            .
