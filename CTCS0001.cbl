@@ -22,11 +22,11 @@
       *------------------------------------------------------------------------
       *
        SELECT ARQ-CONTAS
-           ASSIGN TO CAMINHO-ARQ-CONTAS
+           ASSIGN TO 'C:\Users\F7021226\Documents\contas.txt'
            ORGANIZATION IS INDEXED
-           ACCESS MODE IS SEQUENTIAL
-           RECORD KEY IS REGISTRO-GERAL-CONTAS
-           FILE STATUS IS STATUS-ARQ-CONTAS
+           ACCESS MODE  IS RANDOM
+           FILE STATUS  IS STATUS-ARQ-CONTAS
+           RECORD KEY   IS ID-CONTA
            .
       *------------------------------------------------------------------------
        DATA DIVISION.
@@ -34,9 +34,11 @@
        FILE SECTION.
       *------------------------------------------------------------------------
       *
-       FD  ARQ-CONTAS RECORDING MODE IS F.
+       FD  ARQ-CONTAS
+      * RECORDING MODE IS F
+       .
        01  REGISTRO-GERAL-CONTAS.
-           03  ID-CONTA          PIC  9(008).
+           03  ID-CONTA          PIC  9(016).
            03  RESTANTE          PIC  X(071).
       *
        01  REGISTRO-CONTAS REDEFINES REGISTRO-GERAL-CONTAS.
@@ -221,17 +223,18 @@
       *------------------------------------------------------------------------
       * Determinando o caminho do arquivo
       *
-           STRING 'C:\Users\F7021226\'          DELIMITED BY SIZE
-                  'Documents\projetos_pessoais' DELIMITED BY SIZE
-                  '\cobol\gerenciador_contas\'  DELIMITED BY SIZE
-                  'arq_contas.idx'              DELIMITED BY SIZE
-           INTO CAMINHO-ARQ-CONTAS
+      *>      STRING 'C:\Users\F7021226\'          DELIMITED BY SIZE
+      *>             'Documents\projetos_pessoais' DELIMITED BY SIZE
+      *>             '\cobol\gerenciador_contas\'  DELIMITED BY SIZE
+      *>             'arq_contas.txt'              DELIMITED BY SIZE
+      *>      INTO CAMINHO-ARQ-CONTAS
       *
       * Tenta abrir o arquivo apenas para consulta e verificar se existe
            OPEN I-O ARQ-CONTAS
       * Verifica se o arquivo não existe (35)
            IF STATUS-ARQ-CONTAS EQUAL "35"
       * cria arquivo, se nao existir
+               CLOSE ARQ-CONTAS
                OPEN OUTPUT ARQ-CONTAS
                CLOSE ARQ-CONTAS
       * abre o arquivo ja criado
@@ -663,37 +666,37 @@
        032000-INCLUIR-CONTA SECTION.
       *------------------------------------------------------------------------
        DISPLAY 'ENTREI 032000-INCLUIR-CONTA'
-      * Move a agencia e a conta para posterior pesquisa na base de
-      * dados
-           MOVE S0001-AGENCIA         TO AGENCIA
-           MOVE S0001-CONTA           TO CONTA
       *
       * procura a conta no arquivo, se ja existir, lanca-se um erro
       *
-      * define o status code do arquivo como zero, inicialmente
-           MOVE "00" TO STATUS-ARQ-CONTAS
+           MOVE S0001-AGENCIA TO AGENCIA
+           MOVE S0001-CONTA   TO CONTA
       *
-           PERFORM UNTIL STATUS-ARQ-CONTAS EQUAL "10"
-      * reinicializacao da variavel que ira receber o valor do registro
-               INITIALIZE REGISTRO-GERAL-CONTAS
-      * leitura do registro de forma sequencial
-               READ ARQ-CONTAS NEXT RECORD
-      * se for o ultimo registro
-                   AT END
-                       MOVE "10" TO STATUS-ARQ-CONTAS
-               END-READ
-      * se encontrar a conta procurada, lanca-se um erro
-               IF AGENCIA EQUAL S0001-AGENCIA
-                   AND CONTA EQUAL S0001-CONTA
+           READ ARQ-CONTAS
+               KEY IS ID-CONTA
+           END-READ
+      *
+           EVALUATE TRUE
+               WHEN STATUS-ARQ-CONTAS EQUAL "23"
+                   CONTINUE
+               WHEN STATUS-ARQ-CONTAS EQUAL "00" OR
+                   STATUS-ARQ-CONTAS EQUAL "02"
                    MOVE 10 TO S0001-CD-RTN
-                   STRING "CTCS0001 - Conta ja esta cadastrada. "
+                   STRING "CTCS0001 - Conta jah existe."
                        " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
                        DELIMITED BY SIZE
-                       INTO S0001-TX-MSG-RTN
-                       PERFORM 000000-SAIR-PGM
-               END-IF
-           END-PERFORM
-      * indo criar a conta
+                   INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+               WHEN OTHER
+                   MOVE 10 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Erro ao acessar arquivo."
+                       " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                       DELIMITED BY SIZE
+                   INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+           END-EVALUATE
+      *
+      * Criando a conta, caso não exista
       *
       * movendo para a variavel que corresponde ao registro os dados
       * para posterior armazenamento
@@ -707,20 +710,12 @@
            MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
            MOVE ZEROS                 TO SALDO
       *
+           DISPLAY 'DADOS FORAM TRANSFERIDOS'
+      *
+           DISPLAY 'REGISTRO: ' REGISTRO-GERAL-CONTAS
       * salvando os dados da conta
            WRITE REGISTRO-GERAL-CONTAS
-               INVALID KEY
-                   MOVE 11 TO S0001-CD-RTN
-                   STRING "CTCS0001 - Erro ao salvar a conta."
-                          " - STATUS CODE=" STATUS-ARQ-CONTAS "."
-                          DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
-                   PERFORM 000000-SAIR-PGM
-               NOT INVALID KEY
-                   MOVE ZEROS TO S0001-CD-RTN
-                   MOVE "CTCS0001 - Conta criada com sucesso." TO
-                       S0001-TX-MSG-RTN
-                   PERFORM 000000-SAIR-PGM
-           END-WRITE
+           DISPLAY "STATUS-CODE-WRITE=" STATUS-ARQ-CONTAS
       *
            .
       *
@@ -739,28 +734,28 @@
       *
       * procura a conta no arquivo
       *
-           PERFORM FOREVER
-      * reinicializacao da variavel que ira receber o valor no registro
-               INITIALIZE REGISTRO-GERAL-CONTAS
-      * leitura do registro de forma sequencial
-               READ ARQ-CONTAS NEXT RECORD
-      * se ate o ultimo registro nao for encontrada a conta,
-      * lanca-se um erro
-                   AT END
-                   IF NOT (AGENCIA EQUAL S0001-AGENCIA
-                       AND CONTA EQUAL S0001-CONTA)
-                       MOVE 11 TO S0001-CD-RTN
-                       MOVE "CTCS0001 - Conta nao existente."
-                           TO S0001-TX-MSG-RTN
-                       PERFORM 000000-SAIR-PGM
-                   END-IF
-               END-READ
-      * se encontrar um registro com a conta e a agenica, sai do loop
-               IF AGENCIA EQUAL S0001-AGENCIA
-                   AND CONTA EQUAL S0001-CONTA
-                   EXIT PERFORM
-               END-IF
-           END-PERFORM
+      *>      PERFORM FOREVER
+      *> * reinicializacao da variavel que ira receber o valor no registro
+      *>          INITIALIZE REGISTRO-GERAL-CONTAS
+      *> * leitura do registro de forma sequencial
+      *>          READ ARQ-CONTAS NEXT RECORD
+      *> * se ate o ultimo registro nao for encontrada a conta,
+      *> * lanca-se um erro
+      *>              AT END
+      *>              IF NOT (AGENCIA EQUAL S0001-AGENCIA
+      *>                  AND CONTA EQUAL S0001-CONTA)
+      *>                  MOVE 11 TO S0001-CD-RTN
+      *>                  MOVE "CTCS0001 - Conta nao existente."
+      *>                      TO S0001-TX-MSG-RTN
+      *>                  PERFORM 000000-SAIR-PGM
+      *>              END-IF
+      *>          END-READ
+      *> * se encontrar um registro com a conta e a agenica, sai do loop
+      *>          IF AGENCIA EQUAL S0001-AGENCIA
+      *>              AND CONTA EQUAL S0001-CONTA
+      *>              EXIT PERFORM
+      *>          END-IF
+      *>      END-PERFORM
       *
       * mantem os dados anteriores, so atualizando o nome e
       * a data de nascimento
@@ -773,17 +768,6 @@
            DISPLAY 'REGISTRO-GERAL-CONTAS: ' REGISTRO-GERAL-CONTAS
       *
            REWRITE REGISTRO-GERAL-CONTAS
-               INVALID KEY
-                   MOVE 12 TO S0001-CD-RTN
-                   STRING "CTCS0001 - Erro ao atualizar a conta. "
-                          " - STATUS CODE=" STATUS-ARQ-CONTAS "."
-                          DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
-                   PERFORM 000000-SAIR-PGM
-               NOT INVALID KEY
-                   MOVE 0 TO S0001-CD-RTN
-                   MOVE "CTCS0001 - Conta atualizada com sucesso." TO
-                      S0001-TX-MSG-RTN
-           END-REWRITE
            .
       *
        041000-SAIR.
