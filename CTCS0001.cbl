@@ -22,7 +22,7 @@
       *------------------------------------------------------------------------
       *
        SELECT ARQ-CONTAS
-           ASSIGN TO 'C:\Users\F7021226\Documents\contas.txt'
+           ASSIGN TO 'C:\Users\F7021226\Documents\contas.dat'
            ORGANIZATION IS INDEXED
            ACCESS MODE  IS RANDOM
            FILE STATUS  IS STATUS-ARQ-CONTAS
@@ -157,7 +157,7 @@
       *
        01  COMMAREA.
            03  S0001-ENTD-PROGRAMA.
-               05  S0001-OPERACAO          PIC  9(002) VALUE 3.
+               05  S0001-OPERACAO          PIC  9(002) VALUE 1.
                05  S0001-AGENCIA           PIC  9(004) VALUE 1234.
                05  S0001-DV-AGENCIA        PIC  X(001) VALUE "3".
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
@@ -778,39 +778,39 @@
       *------------------------------------------------------------------------
        040000-EXCLUIR-CONTA SECTION.
       *------------------------------------------------------------------------
-      *
+      * validando a agencia e a conta
+           PERFORM 0X1000-VALIDAR-AGENCIA
+           PERFORM 0X2000-VALIDAR-CONTA
+      * determinando a conta a ser excluida
            MOVE S0001-AGENCIA TO AGENCIA
            MOVE S0001-CONTA   TO CONTA
       *
            READ ARQ-CONTAS
                KEY IS ID-CONTA
+      * se nao encontrar o registro ou se houver algum erro ao acessar o
+      * arquivo
+               INVALID KEY
+                   MOVE 13 TO S0001-CD-RTN
+                   STRING "CTCS0001 - Conta nao encontrada ou erro "
+                       "ao acessar base de dados."
+                       " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                       DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
+                   PERFORM 000000-SAIR-PGM
+      * se o registro for encontrado, exclui-se o registro
+               NOT INVALID KEY
+                   DELETE ARQ-CONTAS
+                       INVALID KEY
+                           MOVE 14 TO S0001-CD-RTN
+                           STRING "CTCS0001 - Erro ao excluir conta. "
+                               "- STATUS-CODE=" STATUS-ARQ-CONTAS "."
+                               DELIMITED BY SIZE
+                           INTO S0001-TX-MSG-RTN
+                       NOT INVALID KEY
+                           MOVE "CTCS0001 - Conta excluida com sucesso."
+                           TO S0001-TX-MSG-RTN
+                   END-DELETE
            END-READ
       *
-           IF STATUS-ARQ-CONTAS EQUAL "00" OR "02"
-               CONTINUE
-           ELSE
-               MOVE 13 TO S0001-CD-RTN
-               STRING "CTCS0001 - Conta nao encontrada ou erro "
-                      "ao acessar base de dados."
-                      " - STATUS-CODE=" STATUS-ARQ-CONTAS "."
-                      DELIMITED BY SIZE INTO S0001-TX-MSG-RTN
-               PERFORM 000000-SAIR-PGM
-           END-IF
-      *
-           MOVE S0001-AGENCIA TO AGENCIA
-           MOVE S0001-CONTA   TO CONTA
-      *
-           DELETE ARQ-CONTAS
-               INVALID KEY
-                   MOVE 14 TO S0001-CD-RTN
-                   STRING "CTCS0001 - Erro ao excluir conta. "
-                          "- STATUS-CODE=" STATUS-ARQ-CONTAS "."
-                          DELIMITED BY SIZE
-                          INTO S0001-TX-MSG-RTN
-               NOT INVALID KEY
-                   MOVE "CTCS0001 - Conta excluida com sucesso."
-                       TO S0001-TX-MSG-RTN
-           END-DELETE
            .
       *
        040000-SAIR.
