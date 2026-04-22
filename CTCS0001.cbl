@@ -38,18 +38,20 @@
       * RECORDING MODE IS F
        .
        01  REGISTRO-GERAL-CONTAS.
-           03  ID-CONTA          PIC  9(016).
-           03  RESTANTE          PIC  X(071).
+           03  ID-CONTA          PIC  9(012).
+           03  RESTANTE          PIC  X(078).
       *
        01  REGISTRO-CONTAS REDEFINES REGISTRO-GERAL-CONTAS.
-           03  AGENCIA           PIC  9(008).
-           03  CONTA             PIC  9(008).
-           03  DV-AGENCIA        PIC  X(001).
-           03  DV-CONTA          PIC  X(001).
-           03  NOME              PIC  X(040).
-           03  CPF               PIC  9(011).
-           03  DATA-NASCIMENTO   PIC  X(008).
-           03  SALDO             PIC  9(008)V99.
+           03  AGENCIA             PIC  9(004).
+           03  CONTA               PIC  9(008).
+           03  DV-AGENCIA          PIC  X(001).
+           03  DV-CONTA            PIC  X(001).
+           03  NOME                PIC  X(040).
+           03  CPF                 PIC  9(011).
+           03  DATA-NASCIMENTO     PIC  X(008).
+           03  SALDO-CT            PIC  9(015)V99.
+      *>      03  SALDO-PTE-INT       PIC  9(015).
+      *>      03  SALDO-PTE-DCML-ANRC PIC  9(002).
       *
       *------------------------------------------------------------------------
        WORKING-STORAGE SECTION.
@@ -58,6 +60,8 @@
       *------------------------------------------------------------------------
        LOCAL-STORAGE SECTION.
       *------------------------------------------------------------------------
+      *
+       01  SALDO-PTE-DCML-NRC        PIC  9(002) VALUE ZEROS.
       *
        01  IC-ITRA                   PIC  9(003) VALUE ZEROS COMP-5.
       *
@@ -163,11 +167,12 @@
                05  S0001-CONTA             PIC  9(008) VALUE 12345678.
                05  S0001-DV-CONTA          PIC  X(001) VALUE "9".
                05  S0001-NOME              PIC  X(080) VALUE
-                   "    MATEUS   BARBOSA  DE   SOUZA".
+                   "    MATEUS   BARBOSA  DE   SILVA".
                05  S0001-CPF               PIC  9(011) VALUE
                    18727199703.
                05  S0001-DATA-NASCIMENTO   PIC  X(008)
                    VALUE "11032002".
+      *
            03  S0001-VRV-RTN.
                05  S0001-CD-RTN            PIC  9(002) VALUE ZEROS.
                05  S0001-TX-MSG-RTN        PIC  X(080) VALUE SPACES.
@@ -708,7 +713,18 @@
            MOVE S0001-NOME            TO NOME
            MOVE S0001-CPF             TO CPF
            MOVE S0001-DATA-NASCIMENTO TO DATA-NASCIMENTO
-           MOVE ZEROS                 TO SALDO
+      *>      MOVE ZEROS                 TO SALDO-PTE-INT
+      *>      MOVE 10                    TO SALDO-PTE-DCML-NRC
+           MOVE 0,1                   TO SALDO-CT
+      *
+      *>      IF FUNCTION MOD(SALDO-PTE-DCML-NRC 10) EQUAL ZEROS
+      *>          STRING SALDO-PTE-DCML-NRC(1:1) "0" DELIMITED BY SIZE
+      *>          INTO SALDO-PTE-DCML-ANRC
+      *>      ELSE
+      *>          MOVE SALDO-PTE-DCML-NRC TO SALDO-PTE-DCML-ANRC
+      *>      END-IF
+      *
+      *>      MOVE SALDO-PTE-DCML-NRC TO SALDO-PTE-DCML-ANRC
       *
            DISPLAY 'DADOS FORAM TRANSFERIDOS'
       *

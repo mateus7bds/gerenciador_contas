@@ -24,17 +24,17 @@
        SELECT CNT001
            ASSIGN TO 'C:\Users\F7021226\Documents\contas.dat'
            ORGANIZATION IS INDEXED
-           ACCESS MODE IS RANDOM
-           RECORD KEY IS CNT001-REGISTRO
-           FILE STATUS IS W-FILE-STATUS-CNT001
+           ACCESS MODE  IS RANDOM
+           RECORD KEY   IS CNT001-ID-CT
+           FILE STATUS  IS W-FILE-STATUS-CNT001
            .
       *
        SELECT DEP001
            ASSIGN TO 'C:\Users\F7021226\Documents\depositos_contas.dat'
            ORGANIZATION IS INDEXED
-           ACCESS MODE IS RANDOM
-           RECORD KEY IS DEP001-REGISTRO
-           FILE STATUS IS W-FILE-STATUS-DEP001
+           ACCESS MODE  IS DYNAMIC
+           RECORD KEY   IS DEP001-ID-DEP
+           FILE STATUS  IS W-FILE-STATUS-DEP001
            .
       *
       *------------------------------------------------------------------------
@@ -47,23 +47,28 @@
       *
        01  CNT001-REGISTRO.
            03  CNT001-ID-CT.
-               05  CNT001-AG                  PIC  9(008).
+               05  CNT001-AG                  PIC  9(004).
                05  CNT001-CT                  PIC  9(008).
            03  CNT001-DV-AG                   PIC  X(001).
            03  CNT001-DV-CT                   PIC  X(001).
            03  CNT001-NM                      PIC  X(040).
            03  CNT001-CPF                     PIC  9(011).
            03  CNT001-DT-NSC                  PIC  X(008).
-           03  CNT001-SDO                     PIC  9(008)V99.
+           03  CNT001-SDO                     PIC  9(015)V99.
+      *>      03  CNT001-SDO-PTE-INT             PIC  9(015).
+      *>      03  CNT001-SDO-PTE-DCML            PIC  9(002).
       *
       *------------------------------------------------------------------------
        FD DEP001.
       *------------------------------------------------------------------------
       *
        01  DEP001-REGISTRO.
-           03  DEP001-ID-DEP                   PIC  9(006).
-           03  DEP001-VL-DEP                   PIC  9(008)V99.
-           03  DEP001-TS-DEP                   PIC  X(008).
+           03  DEP001-ID-DEP                   PIC  9(018).
+           03  DEP001-CT-CLI                   PIC  9(008).
+           03  DEP001-AG-CLI                   PIC  9(008).
+           03  DEP001-VL-PTE-INT               PIC  9(015).
+           03  DEP001-VL-PTE-DCML              PIC  9(002).
+           03  DEP001-TS-DEP                   PIC  X(016).
       *
       *------------------------------------------------------------------------
        WORKING-STORAGE SECTION.
@@ -76,6 +81,11 @@
        LOCAL-STORAGE SECTION.
       *------------------------------------------------------------------------
       *
+       77  W-SDO-PTE-DCML-NRC                  PIC  9(002) VALUE ZEROS.
+       77  W-MOR-VL-ID-DEP001                  PIC  9(018) VALUE
+           999999999999999999.
+       77  W-ID-ULT-REG-DEP001                 PIC  9(018) VALUE ZEROS.
+      *
        01  W-TS-CRR.
            03  W-AA-CRR                        PIC  9(004).
            03  W-MM-CRR                        PIC  9(002).
@@ -86,16 +96,19 @@
            03  W-CTSG-CRR                      PIC  9(002).
            03  W-DIF-HH-CRR                    PIC  S9(004).
       *
+       01  W-SDO-ATZD-CMT                      PIC  9(015)V99.
+      *
       *------------------------------------------------------------------------
       * LINKAGE SECTION.
       *------------------------------------------------------------------------
       *
        01  COMMAREA.
            03  CTCS0002-VRV-ENTD.
-               05  CTCS0002-AG                 PIC 9(004) VALUE ZEROS.
-               05  CTCS0002-CT                 PIC 9(008) VALUE ZEROS.
-               05  CTCS0002-VL                 PIC 9(008)V99 VALUE
-                   ZEROS.
+               05  CTCS0002-AG                 PIC 9(004) VALUE 1234.
+               05  CTCS0002-CT                 PIC 9(008) VALUE
+                  12345678.
+               05  CTCS0002-VL-DEP             PIC 9(015)V99 VALUE
+                   1999,99.
            03  CTCS0002-VRV-RTN.
                05  CTCS0002-CD-RTN             PIC  X(004) VALUE ZEROS.
                05  CTCS0002-TX-MSG-RTN         PIC  X(080) VALUE SPACES.
@@ -109,10 +122,11 @@
            PERFORM 010000-OBTER-TS
            PERFORM 020000-TRATAR-BASE-DADOS
            PERFORM 030000-DEPOSITAR-CONTA
-           PERFORM 040000-SALVAR-REG-CT
+           PERFORM 040000-SALVAR-REG-DEP
            .
       *
        000000-SAIR.
+           DISPLAY 'CTCS0002-TX-MSG-RTN: ' CTCS0002-TX-MSG-RTN
            CLOSE CNT001 DEP001
            GOBACK
            .
@@ -173,13 +187,32 @@
                PERFORM 000000-SAIR
            END-IF
       *
-           ADD CTCS0002-VL TO CNT001-SDO
+      *>      DISPLAY 'CNT001-SDO-PTE-INT.: ' CNT001-SDO-PTE-INT
+      *>      DISPLAY 'CNT001-SDO-PTE-DCML: ' CNT001-SDO-PTE-DCML
+      *> *
+      *>      MOVE CNT001-SDO-PTE-DCML TO W-SDO-PTE-DCML-NRC
+      *> *
+      *>      COMPUTE W-SDO-ATZD-CMT = CNT001-SDO-PTE-INT
+      *>          + CNT001-SDO-PTE-DCML*(0,01)
+      *>          ON SIZE ERROR
+      *>              STRING "CTCS0002 - Erro ao processar saldo "
+      *>                     "do cliente (base de dados)."
+      *>                     DELIMITED BY SIZE
+      *>                     INTO CTCS0002-TX-MSG-RTN
+      *>              PERFORM 000000-SAIR
+      *>      END-COMPUTE
+      *
+      *>      ADD CTCS0002-VL-DEP TO W-SDO-ATZD-CMT
+           ADD CTCS0002-VL-DEP TO CNT001-SDO
                ON SIZE ERROR
                    STRING "CTCS0002 - Valor na conta extrapola o "
                           "limite do sistema." DELIMITED BY SIZE
                        INTO CTCS0002-TX-MSG-RTN
                    PERFORM 000000-SAIR
            END-ADD
+      *> *
+      *>      MOVE W-SDO-ATZD-CMT(1:15) TO CNT001-SDO-PTE-INT
+      *>      MOVE W-SDO-ATZD-CMT(16:2) TO CNT001-SDO-PTE-DCML
       *
            REWRITE CNT001-REGISTRO
                INVALID KEY
@@ -199,10 +232,46 @@
            EXIT SECTION
            .
       *------------------------------------------------------------------------
-       040000-SALVAR-REG-CT SECTION.
+       040000-SALVAR-REG-DEP SECTION.
       *------------------------------------------------------------------------
       *
-           DISPLAY 'SALVANDO REGISTRO'
+           MOVE W-MOR-VL-ID-DEP001 TO DEP001-ID-DEP
+      *
+           START DEP001
+               KEY > DEP001-ID-DEP
+               NOT INVALID KEY
+                   DISPLAY 'ERRO NO START'
+                   PERFORM 000000-SAIR
+           END-START
+      *
+           READ DEP001 PREVIOUS
+               INVALID KEY
+                   DISPLAY 'NAO ACHOU O ULTIMO REGISTRO'
+                   PERFORM 000000-SAIR
+               NOT INVALID KEY
+                   DISPLAY 'DEP001-ID-DEP: ' DEP001-ID-DEP
+                   MOVE DEP001-ID-DEP TO W-ID-ULT-REG-DEP001
+                   DISPLAY 'W-ID-ULT-REG-DEP001: ' W-ID-ULT-REG-DEP001
+           END-READ
+      *
+           INITIALIZE DEP001-REGISTRO
+      *
+           ADD W-ID-ULT-REG-DEP001 1 GIVING DEP001-ID-DEP
+      *
+           MOVE CTCS0002-AG     TO DEP001-AG-CLI
+           MOVE CTCS0002-CT     TO DEP001-CT-CLI
+           MOVE CTCS0002-VL-DEP(1:15) TO DEP001-VL-PTE-INT
+           MOVE CTCS0002-VL-DEP(16:2) TO DEP001-VL-PTE-DCML
+           MOVE W-TS-CRR(1:16)  TO DEP001-TS-DEP
+      *
+           WRITE DEP001-REGISTRO
+               NOT INVALID KEY
+                   DISPLAY 'DEPOSITO SALVO COM SUCESSO'
+                   PERFORM 000000-SAIR
+               INVALID KEY
+                   DISPLAY 'ERRO AO TENTAR SALVAR DEPOSITO'
+           END-WRITE
+      *
            .
       *
        040000-SAIR.
