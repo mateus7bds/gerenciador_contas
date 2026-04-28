@@ -281,6 +281,7 @@
            MOVE W-TS-CRR(1:16)  TO DEP001-TS-DEP
       *
            WRITE DEP001-REGISTRO
+               AFTER ADVANCING W-ID-ULT-REG-DEP001 LINES
                NOT INVALID KEY
                    DISPLAY 'DEPOSITO SALVO COM SUCESSO'
                    PERFORM 000000-SAIR
