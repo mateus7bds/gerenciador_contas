@@ -86,6 +86,10 @@
            999999999999999999.
        77  W-ID-ULT-REG-DEP001                 PIC  9(018) VALUE ZEROS.
       *
+       01  W-FLAG-DEP001                       PIC  X(001).
+           88  W-FLAG-FIM-DEP001  VALUE "S".
+           88  W-FLAG-INC-DEP001  VALUE "N".
+      *
        01  W-TS-CRR.
            03  W-AA-CRR                        PIC  9(004).
            03  W-MM-CRR                        PIC  9(002).
@@ -235,24 +239,36 @@
        040000-SALVAR-REG-DEP SECTION.
       *------------------------------------------------------------------------
       *
-           MOVE W-MOR-VL-ID-DEP001 TO DEP001-ID-DEP
+      *     MOVE W-MOR-VL-ID-DEP001 TO DEP001-ID-DEP
       *
-           START DEP001
-               KEY > DEP001-ID-DEP
-               NOT INVALID KEY
-                   DISPLAY 'ERRO NO START'
-                   PERFORM 000000-SAIR
-           END-START
+      *> *
+      *>      READ DEP001 PREVIOUS
+      *>          INVALID KEY
+      *>              DISPLAY 'NAO ACHOU O ULTIMO REGISTRO'
+      *>              PERFORM 000000-SAIR
+      *>          NOT INVALID KEY
+      *>              DISPLAY 'DEP001-ID-DEP: ' DEP001-ID-DEP
+      *>              MOVE DEP001-ID-DEP TO W-ID-ULT-REG-DEP001
+      *>              DISPLAY 'W-ID-ULT-REG-DEP001: ' W-ID-ULT-REG-DEP001
+      *>      END-READ
       *
-           READ DEP001 PREVIOUS
-               INVALID KEY
-                   DISPLAY 'NAO ACHOU O ULTIMO REGISTRO'
-                   PERFORM 000000-SAIR
-               NOT INVALID KEY
-                   DISPLAY 'DEP001-ID-DEP: ' DEP001-ID-DEP
-                   MOVE DEP001-ID-DEP TO W-ID-ULT-REG-DEP001
-                   DISPLAY 'W-ID-ULT-REG-DEP001: ' W-ID-ULT-REG-DEP001
-           END-READ
+           INITIALIZE DEP001-REGISTRO
+      *
+           MOVE ZEROS TO W-ID-ULT-REG-DEP001
+      *
+           PERFORM UNTIL W-FLAG-DEP001 EQUAL "S"
+               READ DEP001 NEXT
+                   AT END
+                       MOVE DEP001-ID-DEP TO W-ID-ULT-REG-DEP001
+                       SET W-FLAG-FIM-DEP001 TO TRUE
+               END-READ
+           END-PERFORM
+      *
+           IF W-FILE-STATUS-DEP001 NOT EQUAL "00"
+               AND W-FILE-STATUS-DEP001 NOT EQUAL "10"
+               DISPLAY 'NAO ACHOU NENHUM REGISTRO'
+               PERFORM 000000-SAIR
+           END-IF
       *
            INITIALIZE DEP001-REGISTRO
       *
