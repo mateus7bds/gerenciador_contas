@@ -114,7 +114,7 @@
                05  CTCS0002-VL-DEP             PIC 9(015)V99 VALUE
                    1999,99.
            03  CTCS0002-VRV-RTN.
-               05  CTCS0002-CD-RTN             PIC  X(004) VALUE ZEROS.
+               05  CTCS0002-CD-RTN             PIC  9(004) VALUE ZEROS.
                05  CTCS0002-TX-MSG-RTN         PIC  X(080) VALUE SPACES.
       *
       *------------------------------------------------------------------------
@@ -184,6 +184,7 @@
            IF W-FILE-STATUS-CNT001 EQUAL "00"
                CONTINUE
            ELSE
+               MOVE 2000 TO CTCS0002-CD-RTN
                STRING "CTCS0002 - Conta nao existe ou "
                       "erro ao acessar a base de dados."
                       " - FILE-STATUS=" W-FILE-STATUS-CNT001 "."
@@ -209,6 +210,7 @@
       *>      ADD CTCS0002-VL-DEP TO W-SDO-ATZD-CMT
            ADD CTCS0002-VL-DEP TO CNT001-SDO
                ON SIZE ERROR
+                   MOVE 1000 TO CTCS0002-CD-RTN
                    STRING "CTCS0002 - Valor na conta extrapola o "
                           "limite do sistema." DELIMITED BY SIZE
                        INTO CTCS0002-TX-MSG-RTN
@@ -220,6 +222,7 @@
       *
            REWRITE CNT001-REGISTRO
                INVALID KEY
+                   MOVE 2002 TO CTCS0002-CD-RTN
                    STRING "CTCS0002 - Erro ao depositar valor na conta."
                           " - FILE-STATUS=" W-FILE-STATUS-CNT001
                           DELIMITED BY SIZE INTO CTCS0002-TX-MSG-RTN
@@ -255,7 +258,7 @@
            INITIALIZE DEP001-REGISTRO
       *
            MOVE ZEROS TO W-ID-ULT-REG-DEP001
-      *
+      * procurando o ultimo registro
            PERFORM UNTIL W-FLAG-DEP001 EQUAL "S"
                READ DEP001 NEXT
                    AT END
@@ -263,10 +266,15 @@
                        SET W-FLAG-FIM-DEP001 TO TRUE
                END-READ
            END-PERFORM
-      *
+      * se nao encontrar nenhum registro e houver um erro, entao eh
+      * lancado um erro
            IF W-FILE-STATUS-DEP001 NOT EQUAL "00"
                AND W-FILE-STATUS-DEP001 NOT EQUAL "10"
-               DISPLAY 'NAO ACHOU NENHUM REGISTRO'
+               MOVE 2004 TO CTCS0002-CD-RTN
+               STRING "CTCS0002 - Erro ao procurar registro"
+                      " e/ou erro ao acessar base de depositos."
+                      " - FILE-STATUS=" W-FILE-STATUS-DEP001
+                      INTO CTCS0002-TX-MSG-RTN
                PERFORM 000000-SAIR
            END-IF
       *
@@ -283,10 +291,16 @@
            WRITE DEP001-REGISTRO
                AFTER ADVANCING W-ID-ULT-REG-DEP001 LINES
                NOT INVALID KEY
-                   DISPLAY 'DEPOSITO SALVO COM SUCESSO'
+                   MOVE "CTCS0002 - Depósito registrado com sucesso."
+                       TO CTCS0002-TX-MSG-RTN
                    PERFORM 000000-SAIR
                INVALID KEY
-                   DISPLAY 'ERRO AO TENTAR SALVAR DEPOSITO'
+                   MOVE 2006 TO CTCS0002-CD-RTN
+                   STRING "CTCS0002 - Erro ao tentar salvar registro"
+                          " do depósito."
+                          " FILE-STATUS=" W-FILE-STATUS-DEP001
+                          INTO CTCS0002-TX-MSG-RTN
+                   PERFORM 000000-SAIR
            END-WRITE
       *
            .
