@@ -176,7 +176,7 @@
       *
            MOVE CTCS0002-AG TO CNT001-AG
            MOVE CTCS0002-CT TO CNT001-CT
-      *
+      * confirmado se a conta existe
            READ CNT001
                KEY IS CNT001-ID-CT
            END-READ
@@ -191,23 +191,7 @@
                       DELIMITED BY SIZE INTO CTCS0002-TX-MSG-RTN
                PERFORM 000000-SAIR
            END-IF
-      *
-      *>      DISPLAY 'CNT001-SDO-PTE-INT.: ' CNT001-SDO-PTE-INT
-      *>      DISPLAY 'CNT001-SDO-PTE-DCML: ' CNT001-SDO-PTE-DCML
-      *> *
-      *>      MOVE CNT001-SDO-PTE-DCML TO W-SDO-PTE-DCML-NRC
-      *> *
-      *>      COMPUTE W-SDO-ATZD-CMT = CNT001-SDO-PTE-INT
-      *>          + CNT001-SDO-PTE-DCML*(0,01)
-      *>          ON SIZE ERROR
-      *>              STRING "CTCS0002 - Erro ao processar saldo "
-      *>                     "do cliente (base de dados)."
-      *>                     DELIMITED BY SIZE
-      *>                     INTO CTCS0002-TX-MSG-RTN
-      *>              PERFORM 000000-SAIR
-      *>      END-COMPUTE
-      *
-      *>      ADD CTCS0002-VL-DEP TO W-SDO-ATZD-CMT
+      * adiciona o valor de entrada no saldo da conta
            ADD CTCS0002-VL-DEP TO CNT001-SDO
                ON SIZE ERROR
                    MOVE 1000 TO CTCS0002-CD-RTN
@@ -216,10 +200,7 @@
                        INTO CTCS0002-TX-MSG-RTN
                    PERFORM 000000-SAIR
            END-ADD
-      *> *
-      *>      MOVE W-SDO-ATZD-CMT(1:15) TO CNT001-SDO-PTE-INT
-      *>      MOVE W-SDO-ATZD-CMT(16:2) TO CNT001-SDO-PTE-DCML
-      *
+      * atualiza o valor da conta na base de dados
            REWRITE CNT001-REGISTRO
                INVALID KEY
                    MOVE 2002 TO CTCS0002-CD-RTN
@@ -241,19 +222,6 @@
       *------------------------------------------------------------------------
        040000-SALVAR-REG-DEP SECTION.
       *------------------------------------------------------------------------
-      *
-      *     MOVE W-MOR-VL-ID-DEP001 TO DEP001-ID-DEP
-      *
-      *> *
-      *>      READ DEP001 PREVIOUS
-      *>          INVALID KEY
-      *>              DISPLAY 'NAO ACHOU O ULTIMO REGISTRO'
-      *>              PERFORM 000000-SAIR
-      *>          NOT INVALID KEY
-      *>              DISPLAY 'DEP001-ID-DEP: ' DEP001-ID-DEP
-      *>              MOVE DEP001-ID-DEP TO W-ID-ULT-REG-DEP001
-      *>              DISPLAY 'W-ID-ULT-REG-DEP001: ' W-ID-ULT-REG-DEP001
-      *>      END-READ
       *
            INITIALIZE DEP001-REGISTRO
       *
@@ -279,7 +247,7 @@
            END-IF
       *
            INITIALIZE DEP001-REGISTRO
-      *
+      * adicionando 1 ao ultimo id do registro encontrado
            ADD W-ID-ULT-REG-DEP001 1 GIVING DEP001-ID-DEP
       *
            MOVE CTCS0002-AG     TO DEP001-AG-CLI
@@ -287,7 +255,7 @@
            MOVE CTCS0002-VL-DEP(1:15) TO DEP001-VL-PTE-INT
            MOVE CTCS0002-VL-DEP(16:2) TO DEP001-VL-PTE-DCML
            MOVE W-TS-CRR(1:16)  TO DEP001-TS-DEP
-      *
+      * salvando os dados do deposito na base de dados
            WRITE DEP001-REGISTRO
                AFTER ADVANCING W-ID-ULT-REG-DEP001 LINES
                NOT INVALID KEY
