@@ -66,8 +66,9 @@
            03  DEP001-ID-DEP                   PIC  9(018).
            03  DEP001-CT-CLI                   PIC  9(008).
            03  DEP001-AG-CLI                   PIC  9(008).
-           03  DEP001-VL-PTE-INT               PIC  9(015).
-           03  DEP001-VL-PTE-DCML              PIC  9(002).
+           03  DEP001-VL-DEP                   PIC  9(015)V99.
+      *>      03  DEP001-VL-PTE-INT               PIC  9(015).
+      *>      03  DEP001-VL-PTE-DCML              PIC  9(002).
            03  DEP001-TS-DEP                   PIC  X(016).
       *
       *------------------------------------------------------------------------
@@ -130,6 +131,7 @@
            .
       *
        000000-SAIR.
+           DISPLAY 'CTCS0002-CD-RTN....: ' CTCS0002-CD-RTN
            DISPLAY 'CTCS0002-TX-MSG-RTN: ' CTCS0002-TX-MSG-RTN
            CLOSE CNT001 DEP001
            GOBACK
@@ -252,8 +254,7 @@
       *
            MOVE CTCS0002-AG     TO DEP001-AG-CLI
            MOVE CTCS0002-CT     TO DEP001-CT-CLI
-           MOVE CTCS0002-VL-DEP(1:15) TO DEP001-VL-PTE-INT
-           MOVE CTCS0002-VL-DEP(16:2) TO DEP001-VL-PTE-DCML
+           MOVE CTCS0002-VL-DEP TO DEP001-VL-DEP
            MOVE W-TS-CRR(1:16)  TO DEP001-TS-DEP
       * salvando os dados do deposito na base de dados
            WRITE DEP001-REGISTRO
