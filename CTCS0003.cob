@@ -118,7 +118,9 @@
            PERFORM 040000-SALVAR-REG-SAQ
            .
       *
-       000000-SAIR.
+       000000-FINALIZAR.
+           DISPLAY 'CTCS0003-CD-RTN....: ' CTCS0003-CD-RTN
+           DISPLAY 'CTCS0003-TX-MSG-RTN: ' CTCS0003-TX-MSG-RTN
            CLOSE CNT001 SAQ001
            GOBACK
            .
@@ -173,29 +175,21 @@
            IF W-CNT001-FILE-STATUS EQUAL "00"
                CONTINUE
            ELSE
-               DISPLAY 'ERRO CNT001'
-               DISPLAY 'W-CNT001-FILE-STATUS: ' W-CNT001-FILE-STATUS
-               PERFORM 000000-SAIR
+               PERFORM 999002-TRATAR-ERRO
            END-IF
       *
-           DISPLAY 'CNT001-SDO: ' CNT001-SDO
+           IF CTCS0003-VL-SAQ GREATER THAN CNT001-SDO
+               PERFORM 999004-TRATAR-ERRO
+           END-IF
       *
            SUBTRACT
                CTCS0003-VL-SAQ FROM CNT001-SDO
-               ON SIZE ERROR
-                   DISPLAY 'ERRO SUBTRACAO'
-                   PERFORM 000000-SAIR
            END-SUBTRACT
       *
            REWRITE CNT001-REGISTRO
                INVALID KEY
-                   DISPLAY 'W-CNT001-FILE-STATUS: ' W-CNT001-FILE-STATUS
-                   DISPLAY 'ERRO - ATUALIZAR - CNT001'
-               NOT INVALID KEY
-                   DISPLAY 'ATUALIZADO COM SUCESSO'
+                   PERFORM 999006-TRATAR-ERRO
            END-REWRITE
-      *
-           DISPLAY 'CNT001-SDO: ' CNT001-SDO
       *
            .
       *
@@ -221,7 +215,7 @@
       *
            IF W-SAQ001-FILE-STATUS NOT EQUAL "00" AND
                W-SAQ001-FILE-STATUS NOT EQUAL "10"
-               DISPLAY 'ERRO AO LER REGISTRO - SAQ001'
+               PERFORM 999008-TRATAR-ERRO
            END-IF
       *
            INITIALIZE SAQ001-REGISTRO
@@ -236,12 +230,102 @@
            WRITE SAQ001-REGISTRO
                AFTER ADVANCING W-ID-ULT-REG-SAQ001 LINES
                NOT INVALID KEY
-                   DISPLAY 'REGISTRO - SAQUE - SUCESSO'
+                   MOVE "CTCS0003 - Saque realizado com sucesso." TO
+                       CTCS0003-TX-MSG-RTN
                INVALID KEY
-                   DISPLAY 'ERRO - SALVAR - SAQUE'
+                   PERFORM 999010-TRATAR-ERRO
            END-WRITE
            .
       *
        040000-SAIR.
            EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       999002-TRATAR-ERRO SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE 2 TO CTCS0003-CD-RTN
+           STRING
+               "CTCS0003 - Cliente não encontrado ou erro ao "
+               "acessar a base de dados. FS="
+               W-CNT001-FILE-STATUS
+               "."
+               DELIMITED BY SIZE
+               INTO CTCS0003-TX-MSG-RTN
+           END-STRING
+      *
+           .
+      *
+       999002-SAIR.
+           PERFORM 000000-FINALIZAR
+           .
+      *------------------------------------------------------------------------
+       999004-TRATAR-ERRO SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE 4 TO CTCS0003-CD-RTN
+           MOVE "CTCS0003 - Saldo insuficiente para saque."
+               TO CTCS0003-TX-MSG-RTN
+           .
+      *
+       999004-SAIR.
+           PERFORM 000000-FINALIZAR
+           .
+      *
+      *------------------------------------------------------------------------
+       999006-TRATAR-ERRO SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE 6 TO CTCS0003-CD-RTN
+           STRING
+               "CTCS0003 - Erro ao atualizar conta de cliente ou erro "
+               " ao acessar base de dados. FS="
+               W-CNT001-FILE-STATUS
+               "."
+               DELIMITED BY SIZE
+               INTO CTCS0003-TX-MSG-RTN
+           END-STRING
+      *
+           .
+      *
+       999006-SAIR.
+           PERFORM 000000-FINALIZAR
+           .
+      *------------------------------------------------------------------------
+       999008-TRATAR-ERRO SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE 8 TO CTCS0003-CD-RTN
+           STRING
+               "CTCS0003 - Erro ao acessar base de dados do SAQ001. "
+               "FS="
+               W-SAQ001-FILE-STATUS
+               "."
+               DELIMITED BY SIZE
+               INTO CTCS0003-TX-MSG-RTN
+           END-STRING
+      *
+           .
+      *
+       999008-SAIR.
+           PERFORM 000000-FINALIZAR
+           .
+      *------------------------------------------------------------------------
+       999010-TRATAR-ERRO SECTION.
+      *------------------------------------------------------------------------
+      *
+           MOVE 10 TO CTCS0003-CD-RTN
+           STRING
+               "CTCS0003 - Erro ao inserir registro do saque na base de"
+               " dados. FS="
+               W-SAQ001-FILE-STATUS
+               "."
+               DELIMITED BY SIZE
+               INTO CTCS0003-TX-MSG-RTN
+           END-STRING
+      *
+           .
+      *
+       999010-SAIR.
+           PERFORM 000000-FINALIZAR
            .
