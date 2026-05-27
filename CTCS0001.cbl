@@ -670,7 +670,7 @@
       *------------------------------------------------------------------------
        032000-INCLUIR-CONTA SECTION.
       *------------------------------------------------------------------------
-       DISPLAY 'ENTREI 032000-INCLUIR-CONTA'
+           DISPLAY 'ENTREI 032000-INCLUIR-CONTA'
       *
       * procura a conta no arquivo, se ja existir, lanca-se um erro
       *

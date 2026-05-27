@@ -63,15 +63,19 @@
            03  SAQ001-ID-SAQ                  PIC  9(018).
            03  SAQ001-CT-CLI                  PIC  9(008).
            03  SAQ001-AG-CLI                  PIC  9(008).
-           03  SAQ001-VL-DEP                  PIC  9(015)V99.
+           03  SAQ001-VL                      PIC  9(015)V99.
            03  SAQ001-TS-SAQ                  PIC  X(016).
       *
       *------------------------------------------------------------------------
        WORKING-STORAGE SECTION.
       *------------------------------------------------------------------------
       *
-       77  W-CNT001-FILE-STATUS           PIC  X(002) VALUE ZEROS.
-       77  W-SAQ001-FILE-STATUS           PIC  X(002) VALUE ZEROS.
+       77  W-CNT001-FILE-STATUS               PIC  X(002) VALUE ZEROS.
+       77  W-SAQ001-FILE-STATUS               PIC  X(002) VALUE ZEROS.
+      *
+       01  W-FIM-SAQ001                       PIC  X(001).
+           88  W-FIM-SAQ001-S                 VALUE "S".
+           88  W-FIM-SAQ001-N                 VALUE "N".
       *
       *------------------------------------------------------------------------
        LOCAL-STORAGE SECTION.
@@ -86,6 +90,8 @@
            03  W-SGDO-CRR                      PIC  9(002).
            03  W-CTSG-CRR                      PIC  9(002).
            03  W-DIF-HH-CRR                    PIC  S9(004).
+      *
+       01  W-ID-ULT-REG-SAQ001                 PIC  9(018) VALUE ZEROS.
       *
       * LINKAGE SECTION
       *
@@ -109,7 +115,7 @@
            PERFORM 010000-OBTER-TS
            PERFORM 020000-TRATAR-BASE-DADOS
            PERFORM 030000-DEBITAR-CT
-      *     PERFORM 040000-SALVAR-REG-SAQ
+           PERFORM 040000-SALVAR-REG-SAQ
            .
       *
        000000-SAIR.
@@ -194,5 +200,48 @@
            .
       *
        030000-SAIR.
+           EXIT SECTION
+           .
+      *------------------------------------------------------------------------
+       040000-SALVAR-REG-SAQ SECTION.
+      *------------------------------------------------------------------------
+      *
+           INITIALIZE SAQ001-REGISTRO
+      *
+           MOVE ZEROS         TO W-ID-ULT-REG-SAQ001
+           SET W-FIM-SAQ001-N TO TRUE
+      *
+           PERFORM UNTIL W-FIM-SAQ001-S
+               READ SAQ001 NEXT
+                   AT END
+                       MOVE SAQ001-ID-SAQ TO W-ID-ULT-REG-SAQ001
+                       SET W-FIM-SAQ001-S TO TRUE
+               END-READ
+           END-PERFORM
+      *
+           IF W-SAQ001-FILE-STATUS NOT EQUAL "00" AND
+               W-SAQ001-FILE-STATUS NOT EQUAL "10"
+               DISPLAY 'ERRO AO LER REGISTRO - SAQ001'
+           END-IF
+      *
+           INITIALIZE SAQ001-REGISTRO
+      *
+           ADD 1 TO W-ID-ULT-REG-SAQ001 GIVING SAQ001-ID-SAQ
+      *
+           MOVE CTCS0003-AG     TO SAQ001-AG-CLI
+           MOVE CTCS0003-CT     TO SAQ001-CT-CLI
+           MOVE CTCS0003-VL-SAQ TO SAQ001-VL
+           MOVE W-TS-CRR(1:16)  TO SAQ001-TS-SAQ
+      *
+           WRITE SAQ001-REGISTRO
+               AFTER ADVANCING W-ID-ULT-REG-SAQ001 LINES
+               NOT INVALID KEY
+                   DISPLAY 'REGISTRO - SAQUE - SUCESSO'
+               INVALID KEY
+                   DISPLAY 'ERRO - SALVAR - SAQUE'
+           END-WRITE
+           .
+      *
+       040000-SAIR.
            EXIT SECTION
            .
